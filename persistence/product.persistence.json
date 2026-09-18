@@ -1,0 +1,1 @@
+{"schemaVersion":1,"productId":"agro-pecuaria","databaseFile":"artisys-pecuaria.sqlite","migrationNamespace":"agro-pecuaria","migrationDir":"../migrations","seedId":"agro-pecuaria-demo-v1","seedPath":"../seeds/demo.json"}

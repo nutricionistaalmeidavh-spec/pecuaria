@@ -1,5 +1,5 @@
 {
   "repository": "nutricionistaalmeidavh-spec/utilidades",
-  "commit": "a444031860d5b8c91adc5628759bc67c0c29d557",
+  "commit": "4b92d5beccd928033699d8704dd03615188a8720",
   "requiredModules": ["artisys-release", "artisys-ci-reporter"]
 }

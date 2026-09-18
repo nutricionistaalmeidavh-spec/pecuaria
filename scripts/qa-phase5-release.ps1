@@ -2,6 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 $ProductRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $NpmCommand = (Get-Command npm.cmd -CommandType Application -ErrorAction Stop).Source
+$NpxCommand = (Get-Command npx.cmd -CommandType Application -ErrorAction Stop).Source
 $QaArtifactsDir = Join-Path $ProductRoot 'qa-artifacts'
 $RawLogPath = Join-Path $QaArtifactsDir 'phase5-raw.log'
 $FallbackSummaryPath = Join-Path $QaArtifactsDir 'phase5-fallback-summary.json'
@@ -92,12 +93,26 @@ try {
   $ErrorActionPreference = 'Continue'
   Push-Location $ProductRoot
   try {
-    & $NpmCommand run phase5:raw *>&1 | ForEach-Object {
+    Write-Host '[ArtiSys Phase 5] Ensuring Playwright Chromium runtime.'
+    & $NpxCommand --no-install playwright install chromium *>&1 | ForEach-Object {
       $line = [string]$_
       Write-Host $line
       Add-Content -LiteralPath $RawLogPath -Value $line -Encoding utf8
     }
-    $phase5ExitCode = $LASTEXITCODE
+    $browserInstallExitCode = $LASTEXITCODE
+    if ($browserInstallExitCode -ne 0) {
+      $failureLine = "[FAIL] qa:web:browser-install - Playwright Chromium install failed with exit code $browserInstallExitCode"
+      Write-Host $failureLine
+      Add-Content -LiteralPath $RawLogPath -Value $failureLine -Encoding utf8
+      $phase5ExitCode = $browserInstallExitCode
+    } else {
+      & $NpmCommand run phase5:raw *>&1 | ForEach-Object {
+        $line = [string]$_
+        Write-Host $line
+        Add-Content -LiteralPath $RawLogPath -Value $line -Encoding utf8
+      }
+      $phase5ExitCode = $LASTEXITCODE
+    }
   } finally {
     Pop-Location
   }

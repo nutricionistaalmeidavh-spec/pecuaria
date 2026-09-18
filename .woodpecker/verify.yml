@@ -4,7 +4,7 @@ steps:
   verify:
     image: node:22-bookworm
     commands:
-      - npm ci
+      - npm install --no-audit --no-fund
       - npx playwright install --with-deps chromium
       - npm run check
       - npm run qa:web

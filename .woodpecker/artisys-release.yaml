@@ -1,0 +1,12 @@
+labels:
+  platform: windows/amd64
+  backend: local
+
+when:
+  - event: [push, manual]
+
+steps:
+  - name: artisys-release
+    image: powershell.exe
+    commands:
+      - powershell -NoProfile -ExecutionPolicy Bypass -File scripts/artisys-release.ps1

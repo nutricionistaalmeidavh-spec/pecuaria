@@ -1,0 +1,16 @@
+{
+  "product": "ArtiSys Pecuária",
+  "version": "1.0.0-migration.8",
+  "profile": "release",
+  "requiredSteps": ["deps", "test", "build", "installer", "qa", "evidence"],
+  "steps": {
+    "deps": "npm install --no-audit --no-fund",
+    "test": "npm run check",
+    "build": "npm run build:web",
+    "installer": "npm run build:win",
+    "qa": "npm run phase5",
+    "evidence": "npm run qa:ci-evidence"
+  },
+  "reportPath": "artifacts/artisys-release-report.json",
+  "metadata": {"utilidadesCommit":"a444031860d5b8c91adc5628759bc67c0c29d557"}
+}

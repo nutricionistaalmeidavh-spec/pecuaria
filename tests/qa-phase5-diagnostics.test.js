@@ -11,6 +11,7 @@ test('phase5 release QA preserves raw diagnostics and fallback summary', () => {
   assert.match(wrapper, /Write-FallbackPhase5Summary/);
   assert.match(wrapper, /lastFailure/);
   assert.match(wrapper, /phase5-summary-missing|phase5-exit-without-diagnostic/);
+  assert.doesNotMatch(wrapper, /Set-StrictMode/, 'NVM4W npm.ps1 is incompatible with inherited StrictMode');
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
   assert.ok(pkg.scripts['phase5:raw'], 'phase5:raw must preserve the original phase5 command');

@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 $ProductRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$NpmCommand = (Get-Command npm.cmd -CommandType Application -ErrorAction Stop).Source
 $QaArtifactsDir = Join-Path $ProductRoot 'qa-artifacts'
 $RawLogPath = Join-Path $QaArtifactsDir 'phase5-raw.log'
 $FallbackSummaryPath = Join-Path $QaArtifactsDir 'phase5-fallback-summary.json'
@@ -91,7 +92,7 @@ try {
   $ErrorActionPreference = 'Continue'
   Push-Location $ProductRoot
   try {
-    & npm run phase5:raw *>&1 | ForEach-Object {
+    & $NpmCommand run phase5:raw *>&1 | ForEach-Object {
       $line = [string]$_
       Write-Host $line
       Add-Content -LiteralPath $RawLogPath -Value $line -Encoding utf8

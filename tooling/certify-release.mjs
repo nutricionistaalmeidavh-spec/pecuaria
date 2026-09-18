@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {createReadStream} from 'node:fs';
+import {readFile,readdir,rm,stat} from 'node:fs/promises';
+import {basename,join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {currentCommit,writeEvidence} from './evidence.mjs';
+const artifactDir=fileURLToPath(new URL('../qa-artifacts/',import.meta.url)),releaseDir=fileURLToPath(new URL('../release/',import.meta.url)),certPath=join(artifactDir,'release-certification.json'),INSTALLER=/^ArtiSys-Pecuaria-Setup-.*\.exe$/i;
+async function json(path){return JSON.parse(await readFile(path,'utf8'));}
+async function hashFile(path){return new Promise((resolve,reject)=>{const h=createHash('sha256'),s=createReadStream(path);s.on('data',c=>h.update(c));s.on('error',reject);s.on('end',()=>resolve(h.digest('hex')));});}
+export function validateEvidence(commit,evidence){for(const [name,item] of Object.entries(evidence)){assert.equal(item.status,'passed',`${name} evidence is not passed`);assert.equal(item.commit,commit,`${name} evidence is stale`);}return true;}
+export async function certifyRelease(){await rm(certPath,{force:true});const commit=await currentCommit();const evidence={phase5:await json(join(artifactDir,'phase5-summary.json')),phase7:await json(join(artifactDir,'phase7-summary.json')),playwright:await json(join(artifactDir,'playwright-summary.json'))};validateEvidence(commit,evidence);const names=(await readdir(releaseDir)).filter(n=>INSTALLER.test(n));assert.ok(names.length,'Windows installer not found');const candidates=await Promise.all(names.map(async name=>({name,path:join(releaseDir,name),info:await stat(join(releaseDir,name))})));candidates.sort((a,b)=>b.info.mtimeMs-a.info.mtimeMs);const installer=candidates[0];assert.ok(installer.info.size>1024*1024,'Installer must be larger than 1 MiB');const newestEvidence=Math.max(...Object.values(evidence).map(x=>Date.parse(x.generatedAt??x.finishedAt??0)||0));assert.ok(installer.info.mtimeMs>=newestEvidence,'Installer is older than current QA evidence');const record={phase:8,status:'passed',productId:'agro-pecuaria',evidence:{phase5:evidence.phase5.generatedAt,phase7:evidence.phase7.generatedAt,playwright:evidence.playwright.generatedAt},installer:{name:installer.name,size:installer.info.size,mtime:installer.info.mtime.toISOString(),sha256:await hashFile(installer.path)}};await writeEvidence(certPath,{...record,commit});return record;}
+if(basename(process.argv[1]??'').toLowerCase()==='certify-release.mjs')certifyRelease().then(()=>console.log('[PASS] FASE 8 - release certificado')).catch(error=>{console.error(`[FAIL] FASE 8 - ${error.message}`);process.exitCode=1;});

@@ -8,7 +8,7 @@
     "test": "npm run check",
     "build": "npm run build:web",
     "installer": "npm run build:win",
-    "qa": "npm run phase5",
+    "qa": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/qa-phase5-release.ps1",
     "evidence": "npm run qa:ci-evidence"
   },
   "reportPath": "artifacts/artisys-release-report.json",

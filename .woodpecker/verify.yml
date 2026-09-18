@@ -6,7 +6,5 @@ steps:
     commands:
       - npm install --no-audit --no-fund
       - npx playwright install --with-deps chromium
-      - npm run check
-      - npm run qa:surface
-      - npm run qa:web
+      - npm run phase5
       - npm run compat:contract

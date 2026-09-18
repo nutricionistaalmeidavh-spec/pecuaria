@@ -1,5 +1,4 @@
 $ErrorActionPreference = 'Stop'
-Set-StrictMode -Version Latest
 
 $ProductRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $QaArtifactsDir = Join-Path $ProductRoot 'qa-artifacts'

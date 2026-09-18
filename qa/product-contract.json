@@ -1,0 +1,21 @@
+{
+  "productId": "agro-pecuaria",
+  "databaseFile": "artisys-pecuaria.sqlite",
+  "migrationIds": ["agro-pecuaria/001-initial.sql"],
+  "persistence": [
+    {"file":"persistence/product.persistence.json","productId":"agro-pecuaria","databaseFile":"artisys-pecuaria.sqlite","migrationNamespace":"agro-pecuaria"}
+  ],
+  "screens": ["overview","lots","animals","weights","sanitary","reproduction","trades","finance","reports","settings"],
+  "actions": {
+    "overview": [],
+    "lots": ["save","remove"],
+    "animals": ["save","move","lifecycle"],
+    "weights": ["record"],
+    "sanitary": ["saveProtocol","record"],
+    "reproduction": ["record"],
+    "trades": ["create"],
+    "finance": ["addCost","fromTrade"],
+    "reports": ["csv","issue"],
+    "settings": ["backup","restore"]
+  }
+}

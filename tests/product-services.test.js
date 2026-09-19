@@ -85,13 +85,14 @@ test('append import is atomic and rejects duplicate ids instead of overwriting',
   }finally{await f.cleanup()}
 });
 
-test('presentation exposes P1 services without changing contracted screens/actions',async()=>{
+test('presentation exposes product services and the expanded IoT screen contract',async()=>{
   const f=await fixture();
   try{
     const presentation=createCattlePresentation({persistence:f.db});
     assert.equal(typeof presentation.services.search.query,'function');
     assert.equal(typeof presentation.services.alerts.list,'function');
     assert.equal(typeof presentation.services.transfer.exportCollection,'function');
-    assert.deepEqual(presentation.screenIds(),['overview','lots','animals','weights','sanitary','reproduction','trades','finance','reports','settings']);
+    assert.equal(typeof presentation.services.iot.load,'function');
+    assert.deepEqual(presentation.screenIds(),['overview','lots','animals','weights','sanitary','reproduction','trades','finance','reports','iot','settings']);
   }finally{await f.cleanup()}
 });

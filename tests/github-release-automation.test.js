@@ -18,11 +18,22 @@ test('GitHub release workflow certifies and publishes Windows updater assets',as
     'npm run qa:release-run',
     'npm run qa:release-validator',
     'npm run phase8:certify',
-    'softprops/action-gh-release'
+    'softprops/action-gh-release@v3'
   ]) assert.match(workflow,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),token);
   assert.match(workflow,/release\/latest\.yml/);
   assert.match(workflow,/ArtiSys-Pecuaria-Setup-\*/);
   assert.match(workflow,/tags:\s*[\s\S]*v\*/);
+});
+
+test('main automatically publishes a stable version once and verifies the public updater feed',async()=>{
+  const workflow=await read('.github/workflows/release.yml');
+  assert.match(workflow,/Resolve release publication/);
+  assert.match(workflow,/gh release view/);
+  assert.match(workflow,/refs\/heads\/main/);
+  assert.match(workflow,/tag_name:/);
+  assert.match(workflow,/target_commitish:\s*\$\{\{ github\.sha \}\}/);
+  assert.match(workflow,/Verify published updater feed/);
+  assert.match(workflow,/releases\/download/);
 });
 
 test('release run evidence can be produced natively without Woodpecker or a customer database',async()=>{

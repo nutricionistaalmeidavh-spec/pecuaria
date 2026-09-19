@@ -3,76 +3,134 @@
 - Produto: `agro-pecuaria`
 - Banco: `artisys-pecuaria.sqlite`
 - Migration obrigatória: `agro-pecuaria/001-initial.sql`
-- Telas contratadas: **10**
-- Ações contratadas: **16**
+- Telas contratadas atuais: **11**
+- Ações contratadas atuais: **25**
 - Dependência paga obrigatória: **nenhuma**
 
-## Hardening P0
+## P0/P1 — núcleo e operação
 
-O P0 endureceu o núcleo local-first sem criar dual-write nas tabelas legadas:
+O produto mantém o núcleo local-first com:
 
-- transações atômicas na persistência;
-- invariantes pecuárias e unicidade concorrente de identificação animal;
-- RBAC explícito de Settings/Backup/Restore;
-- auditoria persistente com sanitização de credenciais e ator derivado da sessão;
-- venda atômica (`trade + lifecycle + financeiro + audit`) com rollback;
-- QA funcional das 16 ações contratadas.
+- persistência transacional;
+- invariantes pecuárias;
+- RBAC e auditoria persistente;
+- venda atômica com rollback;
+- formulários operacionais tipados;
+- backup verificável com SHA-256 e safety backup;
+- busca, alertas e importação/exportação locais.
 
-## Hardening P1 — verificado
+## IoT opcional — preservado
 
-O P1 foi concluído na branch `hardening/pecuaria-p0-p2` e verificado no commit `54576fdaccc5be1e4fa7f98f328201b3cc9d7555` pelo workflow `Pecuaria P0-P1 Hardening` (run `35469526384`).
+A integração P0/P1 de IoT permanece incorporada e opcional, sem custo recorrente obrigatório:
 
-Evidência do mesmo commit:
+- tela `iot` / **Dispositivos e IoT**;
+- RFID/EID e balança;
+- conectores serial, MQTT e HTTP;
+- registry persistente e secret store local;
+- simuladores para validação sem hardware;
+- ausência de hardware ou integração não impede o uso normal do sistema.
 
-- import boundary: **passed** (`53` arquivos/imports verificados);
-- suíte Node: **52/52 testes passando**;
-- build web Vite: **passed**;
-- Playwright Chromium: **2/2 testes E2E passando**;
-- UI surface: **10/10 telas**;
-- functional actions: **16/16 ações contratadas executadas**;
-- RBAC: **passed**;
-- backup/restore: **passed**;
-- artefato QA anexado pelo Actions: `pecuaria-p1-qa`.
+O contrato atual contém **11 telas e 25 ações**, incluindo as 9 ações IoT.
 
-### Entregas do P1
+## Reporting e dashboard
 
-1. **Frontend operacional**
-   - editor JSON removido do fluxo normal;
-   - formulários tipados para as 16 ações;
-   - normalização de números, listas e datas antes do RPC;
-   - shell desktop responsivo, tabelas, diálogos e feedback operacional;
-   - Browser E2E percorre as 10 telas e abre os formulários das ações.
+O hardening adiciona serviços locais reutilizáveis sem remover a superfície IoT:
 
-2. **Backup verificável**
-   - SHA-256 e metadata sidecar por backup;
-   - `PRAGMA integrity_check` e validação do `product_id`;
-   - backup corrompido rejeitado antes de tocar no banco ativo;
-   - safety backup obrigatório antes de restore;
-   - retention local configurável, preservando safety/protected backups.
+- histórico por animal;
+- KPIs por lote;
+- relatório sanitário;
+- CSV com escaping seguro;
+- dashboard derivado da fonte de verdade persistida;
+- preservação dos KPIs existentes de sanidade e negociações;
+- novos KPIs financeiros de custos e receitas;
+- nenhuma cache paralela de escrita.
 
-3. **Serviços locais reutilizáveis**
-   - busca local limitada às collections de negócio da Pecuária;
-   - alertas derivados para sanidade, pesagem e idade do backup;
-   - exportação JSON versionada;
-   - importação `validate`/`append` com rejeição de IDs duplicados e sem overwrite silencioso;
-   - nenhuma nova tela/ação contratada e nenhuma dependência SaaS obrigatória.
+## Atualização de versão via GitHub Releases
 
-## Fases 5–6
+O desktop está preparado para atualização não silenciosa:
 
-A Fase 5 local possui execução fresca automatizada com Node + Browser E2E. O build/certificação final do instalador Windows continua sendo um gate de release separado.
+- checagem automática somente no executável empacotado;
+- `autoDownload = false`;
+- `autoInstallOnAppQuit = false`;
+- sem downgrade automático;
+- sem prerelease para o canal normal;
+- aviso de versão disponível;
+- **Baixar atualização** exige ação do usuário;
+- **Instalar e reiniciar** exige nova ação explícita;
+- **Verificar atualizações** disponível em Configurações;
+- falha de internet não bloqueia o funcionamento local;
+- nenhum `GH_TOKEN` é embutido no cliente.
 
-## Fase 7
+O canal é GitHub Releases. O build Windows usa `--publish never`; build, certificação e publicação continuam separados.
 
-`npm run phase7` valida o banco legado somente através de cópia sandbox: migrations, reabertura, escrita sentinela, backup/restore, preservação de tabelas preexistentes e hash inalterado do original. WAL ativo bloqueia o ensaio.
+## P2 — gates de produto e release
 
-## Fase 8
+### API Contracts
 
-`npm run phase8:certify` falha se qualquer evidência for ausente, reprovada ou pertencer a outro commit. O instalador `ArtiSys-Pecuaria-Setup-*.exe` precisa ser atual, maior que 1 MiB e recebe SHA-256 na certificação.
+- contrato versionado em `qa/api-contract.json`;
+- baseline SHA-256 em `qa/api-contract.baseline.json`;
+- drift do contrato atual de 11 telas/25 ações bloqueia o gate.
 
-```powershell
-$env:ARTISYS_LEGACY_DB="C:\caminho\artisys-pecuaria.sqlite"; npm run release:certify
+### Security Gate
+
+- `npm audit --omit=dev --json`;
+- scanner de segredos em arquivos versionados;
+- suporte a evidência Semgrep;
+- `HIGH`, `CRITICAL` e severidade desconhecida bloqueiam commit;
+- release também bloqueia findings médios/moderados.
+
+### Product QA
+
+Exige no mesmo commit:
+
+- Fase 5;
+- Playwright;
+- API Contracts;
+- Security.
+
+Evidência ausente, stale ou reprovada bloqueia o produto.
+
+### Release Validator
+
+Exige no mesmo commit:
+
+- Fase 5;
+- Fase 7;
+- Playwright;
+- Product QA;
+- Security;
+- API Contracts;
+- instalador Windows real maior que 1 MiB;
+- nome, timestamp e SHA-256 compatíveis com `release-run.json`.
+
+## Fase 7 — banco legado real
+
+`npm run phase7` opera somente sobre cópia sandbox do banco informado por `ARTISYS_LEGACY_DB`. O original precisa permanecer byte a byte inalterado. WAL ativo bloqueia o ensaio.
+
+Sem banco real indicado, a certificação final falha explicitamente.
+
+## Fase 8 — distribuição certificada
+
+A Fase 8 exige todas as evidências do mesmo commit:
+
+- `phase5-summary.json`;
+- `playwright-summary.json`;
+- `api-contract-summary.json`;
+- `security-summary.json`;
+- `product-qa-summary.json`;
+- `phase7-summary.json`;
+- `release-validation.json`;
+- `release-certification.json`.
+
+## Woodpecker
+
+O Woodpecker permanece **somente manual**:
+
+```yaml
+when:
+  - event: [manual]
 ```
 
-Evidências finais de release: `phase5-summary.json`, `phase7-summary.json`, `playwright-summary.json` e `release-certification.json` em `qa-artifacts/`.
+O wrapper Windows executa os gates P2, Fase 7, Release Validator e Fase 8 antes de considerar a distribuição aprovada.
 
-**Estado:** P0 e P1 implementados e verificados. A integração do código em `main` foi autorizada separadamente da certificação de release. P2 e a homologação final Windows/banco legado real/instalador permanecem pendentes; merge em `main` não equivale à certificação final de distribuição. Monorepo preservado como rollback.
+**Estado:** P0/P1 e IoT P0/P1 estão preservados. Reporting/dashboard, updater e gates P2 estão implementados sobre a linha atual do produto. A certificação de distribuição continua exigindo uma execução manual no Windows com banco legado real e instalador gerado no mesmo commit; merge de código não equivale à certificação da distribuição.

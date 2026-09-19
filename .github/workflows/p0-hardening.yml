@@ -1,9 +1,11 @@
-name: Pecuaria P0-P1 Hardening
+name: Pecuaria P0-P2 Hardening
 
 on:
   push:
     branches:
       - hardening/pecuaria-p0-p2
+      - hardening/reporting-dashboard-p2
+      - hardening/reporting-dashboard-p2-integration
   workflow_dispatch:
 
 jobs:
@@ -29,11 +31,17 @@ jobs:
         run: npm run qa:web
       - name: Phase 5 functional evidence
         run: npm run qa:surface
+      - name: API contract gate
+        run: npm run qa:contracts
+      - name: Security gate
+        run: npm run qa:security
+      - name: Product QA gate
+        run: npm run qa:product
       - name: Upload QA evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pecuaria-p1-qa
+          name: pecuaria-p2-qa
           path: |
             qa-artifacts/*.json
             qa-artifacts/playwright-report

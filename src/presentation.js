@@ -12,6 +12,8 @@ import {createAuditService} from './audit.js';
 import {createLocalSearchService} from './services/search.js';
 import {createCattleAlertsService} from './services/alerts.js';
 import {createCattleTransferService} from './services/transfer.js';
+import {createCattleReportingService} from './services/reporting.js';
+import {createCattleDashboardService} from './services/dashboard.js';
 import {createSellAnimalsUseCase} from './use-cases/sell-animals.js';
 import {createIoTService} from './iot/service.js';
 
@@ -29,6 +31,8 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
   const search=createLocalSearchService(persistence);
   const alerts=createCattleAlertsService({persistence,recovery});
   const transfer=createCattleTransferService(persistence);
+  const reporting=createCattleReportingService(persistence);
+  const dashboard=createCattleDashboardService({persistence,alerts});
   const sellAnimals=createSellAnimalsUseCase({persistence,audit});
   const iot=providedIoT??createIoTService({persistence,animals:repos.animals,audit,drivers:iotRuntime?.drivers??null,secretStore:iotRuntime?.secretStore});
   const shell=createCattleShellModel({capabilities});
@@ -40,7 +44,7 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
   async function mutateAnimal(id,fn,input){const current=required(await repos.animals.get(id),'Animal');return repos.animals.save(fn(current.payload,input),{expectedVersion:current.version});}
 
   const screens={
-    overview:{kind:'livestock-dashboard',async load(){const[lots,animals,events,trades]=await Promise.all([repos.lots.list(),repos.animals.list(),repos.events.list(),repos.trades.list()]);const active=rows(animals).filter(animal=>animal.status==='active');const weights=active.map(animal=>animal.weights?.at(-1)?.weightKg).filter(Number.isFinite);return{cards:{lots:lots.length,activeAnimals:active.length,averageWeightKg:weights.length?weights.reduce((a,b)=>a+b,0)/weights.length:null,sanitaryEvents:rows(events).filter(event=>event.kind==='sanitary').length,trades:trades.length}};}},
+    overview:{kind:'livestock-dashboard',async load(){const snapshot=await dashboard.snapshot();return{cards:snapshot.kpis,alerts:snapshot.alerts,layout:snapshot.layout};}},
     lots:{kind:'lot-board',load:async()=>({rows:await repos.lots.list()}),actions:{save:audited('cattle.lot.save','lot',(entity,options)=>repos.lots.save(entity,options??{})),remove:audited('cattle.lot.remove','lot',({id,expectedVersion})=>repos.lots.remove(id,{expectedVersion}))}},
     animals:{kind:'animal-register',load:async()=>({rows:await repos.animals.list()}),actions:{save:audited('cattle.animal.save','animal',(entity,options)=>repos.animals.save(entity,options??{})),move:audited('cattle.animal.move','animal',async({id,...input})=>{await invariants.assertLotExists(input.toLotId);return mutateAnimal(id,moveAnimal,input);}),lifecycle:audited('cattle.animal.lifecycle','animal',({id,...input})=>mutateAnimal(id,recordAnimalLifecycle,input))}},
     weights:{kind:'weight-history',load:async()=>({rows:await repos.animals.list()}),actions:{record:audited('cattle.weight.record','animal',({id,...input})=>mutateAnimal(id,recordWeight,input))}},
@@ -66,5 +70,5 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
     },
     settings:{kind:'settings',async load(){return{local:{mode:'local-first',networkRequired:false},backups:recovery?await recovery.listBackups():[]}},actions:{backup:audited('settings.backup','backup',(input={})=>recovery.createBackup(input),({result})=>result?.id??null),restore:audited('settings.restore','backup',({id,...options})=>recovery.restoreBackup(id,options),({input})=>input?.id??null)}}
   };
-  return createFunctionalPresentation({shell,screens,services:{security,audit,search,alerts,transfer,iot,localRuntime,recovery}});
+  return createFunctionalPresentation({shell,screens,services:{security,audit,search,alerts,transfer,reporting,dashboard,iot,localRuntime,recovery}});
 }

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "productId": "agro-pecuaria",
+  "screens": ["overview","lots","animals","weights","sanitary","reproduction","trades","finance","reports","iot","settings"],
+  "actions": {
+    "overview": [],
+    "lots": ["save","remove"],
+    "animals": ["save","move","lifecycle"],
+    "weights": ["record"],
+    "sanitary": ["saveProtocol","record"],
+    "reproduction": ["record"],
+    "trades": ["create"],
+    "finance": ["addCost","fromTrade"],
+    "reports": ["csv","issue"],
+    "iot": ["saveDevice","removeDevice","testDevice","startDevice","stopDevice","bindRfid","unbindRfid","simulateRfid","simulateWeight"],
+    "settings": ["backup","restore"]
+  }
+}

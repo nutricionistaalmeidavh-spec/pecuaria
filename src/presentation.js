@@ -9,6 +9,9 @@ import {createCattleTradeEntry,createCattleCost,cattleFinancialMetrics} from './
 import {createDocumentService} from './documents.js';
 import {createSecurityService} from './security.js';
 import {createAuditService} from './audit.js';
+import {createLocalSearchService} from './services/search.js';
+import {createCattleAlertsService} from './services/alerts.js';
+import {createCattleTransferService} from './services/transfer.js';
 import {createSellAnimalsUseCase} from './use-cases/sell-animals.js';
 
 const rows=records=>records.map(record=>record.payload);
@@ -22,6 +25,9 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
   const documents=createDocumentService(persistence);
   const audit=providedAudit??createAuditService(persistence,{productId:'agro-pecuaria'});
   const security=createSecurityService(persistence,{audit});
+  const search=createLocalSearchService(persistence);
+  const alerts=createCattleAlertsService({persistence,recovery});
+  const transfer=createCattleTransferService(persistence);
   const sellAnimals=createSellAnimalsUseCase({persistence,audit});
   const shell=createCattleShellModel({capabilities});
 
@@ -166,5 +172,5 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
     }
   };
 
-  return createFunctionalPresentation({shell,screens,services:{security,audit,localRuntime,recovery}});
+  return createFunctionalPresentation({shell,screens,services:{security,audit,search,alerts,transfer,localRuntime,recovery}});
 }

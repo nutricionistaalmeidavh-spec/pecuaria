@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {canonicalJson,contractDigest,validateContractSnapshot} from '../tooling/api-contract-gate.mjs';
-import {evaluateSecurity} from '../tooling/security-gate.mjs';
+import {evaluateSecurity,npmAuditInvocation} from '../tooling/security-gate.mjs';
 import {evaluateProductQa} from '../tooling/product-qa-gate.mjs';
 import {validateReleaseEvidence} from '../tooling/release-validator-gate.mjs';
 
@@ -16,6 +16,14 @@ test('API contract digest ignores object key order but detects real contract dri
   assert.equal(validateContractSnapshot({declared:a,current:b,baseline}),true);
   assert.throws(()=>validateContractSnapshot({declared:a,current:{...b,screens:['overview']},baseline}),/drift/i);
   assert.throws(()=>validateContractSnapshot({declared:a,current:b,baseline:{schemaVersion:1,sha256:'bad'}}),/baseline/i);
+});
+
+test('security gate uses cmd.exe for npm audit on Windows instead of spawning npm.cmd directly',()=>{
+  const invocation=npmAuditInvocation('win32',{ComSpec:'C:\\Windows\\System32\\cmd.exe'});
+  assert.equal(invocation.command,'C:\\Windows\\System32\\cmd.exe');
+  assert.deepEqual(invocation.args,['/d','/s','/c','npm audit --omit=dev --json']);
+  assert.equal(npmAuditInvocation('linux',{}).command,'npm');
+  assert.deepEqual(npmAuditInvocation('linux',{}).args,['audit','--omit=dev','--json']);
 });
 
 test('security gate is fail-closed for high critical unknown and release medium findings',()=>{

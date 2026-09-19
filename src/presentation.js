@@ -44,7 +44,7 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
   async function mutateAnimal(id,fn,input){const current=required(await repos.animals.get(id),'Animal');return repos.animals.save(fn(current.payload,input),{expectedVersion:current.version});}
 
   const screens={
-    overview:{kind:'livestock-dashboard',async load(){const snapshot=await dashboard.snapshot();return{cards:snapshot.kpis,alerts:snapshot.alerts,layout:snapshot.layout};}},
+    overview:{kind:'livestock-dashboard',async load(){const snapshot=await dashboard.snapshot();return{cards:snapshot.kpis,primaryKpis:snapshot.primaryKpis,alerts:snapshot.alerts,layout:snapshot.layout};}},
     lots:{kind:'lot-board',load:async()=>({rows:await repos.lots.list()}),actions:{save:audited('cattle.lot.save','lot',(entity,options)=>repos.lots.save(entity,options??{})),remove:audited('cattle.lot.remove','lot',({id,expectedVersion})=>repos.lots.remove(id,{expectedVersion}))}},
     animals:{kind:'animal-register',load:async()=>({rows:await repos.animals.list()}),actions:{save:audited('cattle.animal.save','animal',(entity,options)=>repos.animals.save(entity,options??{})),move:audited('cattle.animal.move','animal',async({id,...input})=>{await invariants.assertLotExists(input.toLotId);return mutateAnimal(id,moveAnimal,input);}),lifecycle:audited('cattle.animal.lifecycle','animal',({id,...input})=>mutateAnimal(id,recordAnimalLifecycle,input))}},
     weights:{kind:'weight-history',load:async()=>({rows:await repos.animals.list()}),actions:{record:audited('cattle.weight.record','animal',({id,...input})=>mutateAnimal(id,recordWeight,input))}},

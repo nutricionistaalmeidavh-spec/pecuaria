@@ -133,4 +133,4 @@ when:
 
 O wrapper Windows executa os gates P2, Fase 7, Release Validator e Fase 8 antes de considerar a distribuição aprovada.
 
-**Estado:** P0/P1 e IoT P0/P1 estão preservados. Reporting/dashboard, updater e gates P2 estão implementados sobre a linha atual do produto. A certificação de distribuição continua exigindo uma execução manual no Windows com banco legado real e instalador gerado no mesmo commit; merge de código não equivale à certificação da distribuição.
+**Estado:** P0/P1 e IoT P0/P1 estão preservados. Reporting/dashboard, updater e gates P2 estão implementados sobre a linha atual do produto. A linha de integração parte da `main` com IoT já incorporado, evitando regressão do trabalho paralelo. A certificação de distribuição continua exigindo uma execução manual no Windows com banco legado real e instalador gerado no mesmo commit; merge de código não equivale à certificação da distribuição.

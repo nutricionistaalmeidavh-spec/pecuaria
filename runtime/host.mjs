@@ -1,16 +1,16 @@
-import {mkdir,readdir,copyFile,stat} from 'node:fs/promises';
+import {mkdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadSqlMigrations,openProductPersistence} from '../shared/packages/vertical-persistence/src/index.js';
+import {createBackupManager} from '../src/backup.js';
 import {createCattlePresentation} from '../src/presentation.js';
 import {createRpcBackend} from './backend.mjs';
 
 const PID='agro-pecuaria';
 const DB='artisys-pecuaria.sqlite';
 const mdir=fileURLToPath(new URL('../migrations/',import.meta.url));
-const safe=v=>String(v??Date.now()).replace(/[^a-zA-Z0-9._-]/g,'-');
 
-export async function createStandaloneHost({dataDir,backupDir=join(dataDir,'backups')}={}){
+export async function createStandaloneHost({dataDir,backupDir=join(dataDir,'backups'),backupRetention=20}={}){
   await mkdir(dataDir,{recursive:true});
   await mkdir(backupDir,{recursive:true});
   const dbPath=join(dataDir,DB);
@@ -33,36 +33,29 @@ export async function createStandaloneHost({dataDir,backupDir=join(dataDir,'back
     health:(...a)=>call('health',a),
     transaction:(...a)=>call('transaction',a)
   };
-  async function quiet(work){
+  const closeDatabase=async()=>{
     const old=current;
     current=null;
-    await old.close();
-    try{return await work()}
-    finally{current=await open()}
-  }
-  const recovery={
-    async createBackup({id=`backup-${Date.now()}`}={}){
-      const bid=safe(id),path=join(backupDir,`${bid}.sqlite`);
-      await quiet(()=>copyFile(dbPath,path));
-      const s=await stat(path);
-      return{id:bid,createdAt:s.mtime.toISOString(),path};
-    },
-    async listBackups(){
-      return Promise.all((await readdir(backupDir)).filter(n=>n.endsWith('.sqlite')).sort().reverse().map(async n=>{
-        const path=join(backupDir,n),s=await stat(path);
-        return{id:n.slice(0,-7),createdAt:s.mtime.toISOString(),path};
-      }));
-    },
-    async restoreBackup(id){
-      const bid=safe(id),source=join(backupDir,`${bid}.sqlite`),safety=join(backupDir,`safety-${Date.now()}.sqlite`);
-      await quiet(async()=>{
-        await copyFile(dbPath,safety);
-        await copyFile(source,dbPath);
-      });
-      return{restored:true,backupId:bid};
-    }
+    await old?.close();
   };
+  const reopenDatabase=async()=>{
+    if(!current)current=await open();
+  };
+  const recovery=await createBackupManager({
+    dbPath,
+    backupDir,
+    productId:PID,
+    retention:backupRetention,
+    closeDatabase,
+    reopenDatabase
+  });
   const presentation=createCattlePresentation({persistence,recovery});
   const backend=createRpcBackend({presentation});
-  return{persistence,recovery,presentation,backend,async close(){const old=current;current=null;await old?.close()}};
+  return{
+    persistence,
+    recovery,
+    presentation,
+    backend,
+    async close(){await closeDatabase()}
+  };
 }

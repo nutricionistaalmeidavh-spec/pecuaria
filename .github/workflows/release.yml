@@ -100,6 +100,36 @@ jobs:
           $version = node -p "require('./package.json').version"
           if ("v$version" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match package version v$version" }
 
+      - name: Resolve release publication
+        id: publication
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = node -p "require('./package.json').version"
+          $tag = "v$version"
+          $publish = 'false'
+          $exists = $false
+
+          gh release view $tag --repo "${{ github.repository }}" --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            $exists = $true
+          } else {
+            $global:LASTEXITCODE = 0
+          }
+
+          if ("${{ github.ref }}" -eq 'refs/heads/main' -and -not $exists) {
+            $publish = 'true'
+          }
+
+          if ("${{ startsWith(github.ref, 'refs/tags/v') }}" -eq 'true' -and -not $exists) {
+            $publish = 'true'
+          }
+
+          "tag_name=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "publish=$publish" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "Release tag: $tag | exists=$exists | publish=$publish"
+
       - name: Upload certified release evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -114,9 +144,11 @@ jobs:
           if-no-files-found: warn
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        if: steps.publication.outputs.publish == 'true'
+        uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ steps.publication.outputs.tag_name }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
@@ -125,3 +157,25 @@ jobs:
             release/*.blockmap
             qa-artifacts/release-certification.json
             qa-artifacts/release-validation.json
+
+      - name: Verify published updater feed
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.publication.outputs.tag_name }}"
+          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/latest.yml"
+          $ok = $false
+          for ($attempt = 1; $attempt -le 5; $attempt++) {
+            try {
+              $response = Invoke-WebRequest -Uri $url -UseBasicParsing
+              if ($response.StatusCode -eq 200 -and $response.Content -match 'ArtiSys-Pecuaria-Setup-') {
+                $ok = $true
+                break
+              }
+            } catch {
+              if ($attempt -eq 5) { throw }
+              Start-Sleep -Seconds 2
+            }
+          }
+          if (-not $ok) { throw "Published updater feed is invalid: $url" }
+          Write-Host "Updater feed verified: $url"

@@ -6,6 +6,8 @@ on:
       - hardening/pecuaria-p0-p2
       - hardening/reporting-dashboard-p2
       - hardening/reporting-dashboard-p2-integration
+      - release/fully-automated-github
+      - main
   workflow_dispatch:
 
 jobs:

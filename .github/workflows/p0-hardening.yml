@@ -30,6 +30,12 @@ jobs:
         run: npm run qa:web
       - name: Phase 5 functional evidence
         run: npm run qa:surface
+      - name: API contract gate
+        run: npm run qa:contracts
+      - name: Security gate
+        run: npm run qa:security
+      - name: Product QA gate
+        run: npm run qa:product
       - name: Upload QA evidence
         if: always()
         uses: actions/upload-artifact@v4

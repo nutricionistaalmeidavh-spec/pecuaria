@@ -6,6 +6,7 @@ import {join} from 'node:path';
 import {openProductPersistence} from '../shared/packages/vertical-persistence/src/index.js';
 import {SECURITY_POLICY,PRESENTATION_ACCESS,createSecurityService} from '../src/security.js';
 import {createAuditService} from '../src/audit.js';
+import {createStandaloneHost} from '../runtime/host.mjs';
 
 async function fixture(){
   const dir=await mkdtemp(join(tmpdir(),'pecuaria-security-'));
@@ -95,4 +96,27 @@ test('viewer cannot read audit log',async()=>{
       error=>error?.code==='FORBIDDEN'
     );
   }finally{await f.cleanup()}
+});
+
+test('RPC mutations audit the authenticated actor instead of trusting input actorId',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'pecuaria-rpc-audit-'));
+  let host;
+  try{
+    host=await createStandaloneHost({dataDir:root});
+    const admin=await host.backend.bootstrap({username:'admin',password:'password-123'});
+    const auth=await host.backend.login({username:'admin',password:'password-123'});
+    await host.backend.action({
+      screenId:'lots',
+      action:'save',
+      auth:{sessionId:auth.session.id,token:auth.token},
+      input:{id:'lot-audit',name:'Lote Auditoria',farmUnitId:'farm-1',purpose:'beef',actorId:'spoofed-user'}
+    });
+    const events=await host.presentation.services.audit.list({action:'cattle.lot.save'});
+    assert.equal(events.length,1);
+    assert.equal(events[0].actorId,admin.id);
+    assert.notEqual(events[0].actorId,'spoofed-user');
+  }finally{
+    await host?.close();
+    await rm(root,{recursive:true,force:true});
+  }
 });

@@ -1,9 +1,28 @@
 import React,{useEffect,useMemo,useState} from 'react';
+import {Icon} from './icons.jsx';
 
 export function StatusBanner({tone='info',children}){return <div className={`status ${tone}`} role={tone==='error'?'alert':'status'}>{children}</div>}
 
-export function DesktopShell({brand,navigation,title,children,onLogout}){
-  return <div className="shell"><aside className="sidebar"><div className="brand">{brand}</div><nav>{navigation}</nav></aside><div className="workspace"><header className="topbar"><div><small>ArtiSys Pecuária</small><h1>{title}</h1></div><button className="ghost" onClick={onLogout}>Sair</button></header><main className="content">{children}</main></div></div>;
+export function DesktopShell({brand,navigation,title,children,onLogout,notificationCount=0}){
+  return <div className="shell">
+    <aside className="sidebar">
+      <div className="brand">{brand}</div>
+      <nav aria-label="Navegação principal">{navigation}</nav>
+      <div className="sidebar-foot"><Icon name="beef" size={18}/><span>Gestão local-first</span></div>
+    </aside>
+    <div className="workspace">
+      <header className="topbar">
+        <div className="topbar-title"><small>ArtiSys Pecuária</small><h1>{title}</h1></div>
+        <label className="global-search"><Icon name="search" size={18}/><input aria-label="Busca global" placeholder="Buscar animal, lote ou informação..."/></label>
+        <div className="topbar-actions">
+          <button className="notification-button" type="button" aria-label={`${notificationCount} alertas`}><Icon name="bell" size={19}/>{notificationCount>0&&<span>{notificationCount>99?'99+':notificationCount}</span>}</button>
+          <div className="user-chip"><span className="avatar">AD</span><span><strong>Administrador</strong><small>Operação local</small></span></div>
+          <button className="ghost logout-button" onClick={onLogout}>Sair</button>
+        </div>
+      </header>
+      <main className="content">{children}</main>
+    </div>
+  </div>;
 }
 
 export function DataTable({records=[]}){

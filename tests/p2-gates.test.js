@@ -1,0 +1,50 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {canonicalJson,contractDigest,validateContractSnapshot} from '../tooling/api-contract-gate.mjs';
+import {evaluateSecurity} from '../tooling/security-gate.mjs';
+import {evaluateProductQa} from '../tooling/product-qa-gate.mjs';
+import {validateReleaseEvidence} from '../tooling/release-validator-gate.mjs';
+
+const commit='a'.repeat(40);
+
+test('API contract digest ignores object key order but detects real contract drift',()=>{
+  const a={productId:'agro-pecuaria',actions:{lots:['save','remove']},screens:['overview','lots']};
+  const b={screens:['overview','lots'],actions:{lots:['save','remove']},productId:'agro-pecuaria'};
+  assert.equal(canonicalJson(a),canonicalJson(b));
+  assert.equal(contractDigest(a),contractDigest(b));
+  const baseline={schemaVersion:1,sha256:contractDigest(a)};
+  assert.equal(validateContractSnapshot({declared:a,current:b,baseline}),true);
+  assert.throws(()=>validateContractSnapshot({declared:a,current:{...b,screens:['overview']},baseline}),/drift/i);
+  assert.throws(()=>validateContractSnapshot({declared:a,current:b,baseline:{schemaVersion:1,sha256:'bad'}}),/baseline/i);
+});
+
+test('security gate is fail-closed for high critical unknown and release medium findings',()=>{
+  const clean={metadata:{vulnerabilities:{info:0,low:0,moderate:0,high:0,critical:0,total:0}}};
+  assert.equal(evaluateSecurity({mode:'commit',audit:clean,secretFindings:[],semgrep:{errors:[],results:[]}}).status,'passed');
+  assert.equal(evaluateSecurity({mode:'commit',audit:{metadata:{vulnerabilities:{high:1,total:1}}},secretFindings:[],semgrep:{errors:[],results:[]}}).status,'blocked');
+  assert.equal(evaluateSecurity({mode:'commit',audit:clean,secretFindings:[{path:'x'}],semgrep:{errors:[],results:[]}}).status,'blocked');
+  assert.equal(evaluateSecurity({mode:'commit',audit:clean,secretFindings:[],semgrep:{errors:[{message:'scanner failed'}],results:[]}}).status,'blocked');
+  assert.equal(evaluateSecurity({mode:'release',audit:{metadata:{vulnerabilities:{moderate:1,total:1}}},secretFindings:[],semgrep:{errors:[],results:[]}}).status,'blocked');
+  assert.equal(evaluateSecurity({mode:'commit',audit:{metadata:{vulnerabilities:{total:1}}},secretFindings:[],semgrep:{errors:[],results:[]}}).status,'blocked');
+});
+
+test('Product QA blocks missing, stale or failed required evidence and high findings',()=>{
+  const passed=name=>({name,status:'passed',commit,blockedFindings:[]});
+  const evidence={phase5:passed('phase5'),playwright:passed('playwright'),contracts:passed('contracts'),security:passed('security')};
+  assert.equal(evaluateProductQa({commit,evidence}).status,'passed');
+  assert.equal(evaluateProductQa({commit,evidence:{...evidence,security:{...passed('security'),status:'blocked'}}}).status,'blocked');
+  assert.equal(evaluateProductQa({commit,evidence:{...evidence,contracts:{...passed('contracts'),commit:'b'.repeat(40)}}}).status,'blocked');
+  assert.equal(evaluateProductQa({commit,evidence:{...evidence,security:{...passed('security'),blockedFindings:[{severity:'HIGH'}]}}}).status,'blocked');
+  assert.equal(evaluateProductQa({commit,evidence:{phase5:evidence.phase5}}).status,'blocked');
+});
+
+test('release validator binds installer and every required evidence item to the same commit',()=>{
+  const evidence=Object.fromEntries(['phase5','phase7','playwright','productQa','security','contracts'].map(name=>[name,{status:'passed',commit}]));
+  const installer={name:'ArtiSys-Pecuaria-Setup-1.0.0.exe',size:2_000_000,sha256:'c'.repeat(64),mtimeMs:2000};
+  const run={status:'passed',commit,startedAt:new Date(1000).toISOString(),installer:{name:installer.name,sha256:installer.sha256}};
+  assert.equal(validateReleaseEvidence({commit,evidence,installer,run}).status,'passed');
+  assert.throws(()=>validateReleaseEvidence({commit,evidence:{...evidence,phase7:{status:'passed',commit:'b'.repeat(40)}},installer,run}),/stale/i);
+  assert.throws(()=>validateReleaseEvidence({commit,evidence,installer:{...installer,sha256:'d'.repeat(64)},run}),/hash/i);
+  assert.throws(()=>validateReleaseEvidence({commit,evidence,installer:null,run}),/installer/i);
+  assert.throws(()=>validateReleaseEvidence({commit,evidence:{...evidence,security:{status:'blocked',commit}},installer,run}),/security/i);
+});

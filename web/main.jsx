@@ -52,6 +52,8 @@ function App(){
     try{
       if(!hasUsers)await backend.bootstrap(credentials);
       const result=await backend.login(credentials);
+      setMeta(null);
+      setScreenId(null);
       setAuth({sessionId:result.session.id,token:result.token});
     }catch(error){setNotice({tone:'error',text:error.message})}
   }
@@ -62,11 +64,12 @@ function App(){
 
   if(!backend)return <div className="boot">Carregando ArtiSys Pecuária…</div>;
   if(!auth)return <div className="login-page"><form className="login-card" onSubmit={login}><div><span className="eyebrow">Gestão pecuária local</span><h1>ArtiSys Pecuária</h1><p>{hasUsers?'Entre para acessar a fazenda.':'Crie o administrador local deste computador.'}</p></div><label><span>Usuário</span><input data-testid="username" autoComplete="username" value={credentials.username} onChange={e=>setCredentials({...credentials,username:e.target.value})}/></label><label><span>Senha</span><input data-testid="password" type="password" minLength="8" autoComplete={hasUsers?'current-password':'new-password'} value={credentials.password} onChange={e=>setCredentials({...credentials,password:e.target.value})}/></label><button data-testid="auth-submit" className="primary">{hasUsers?'Entrar':'Criar administrador'}</button>{notice&&<StatusBanner tone={notice.tone}>{notice.text}</StatusBanner>}</form></div>;
+  if(!meta)return <div className="boot" data-testid="authenticated-loading">Carregando ambiente da fazenda…</div>;
 
   const navigation=<>{meta.navigation.map(item=><button key={item.id} data-testid={`nav-${item.id}`} className={`nav-item ${item.id===screenId?'on':''}`} onClick={()=>{setScreenId(item.id);setNotice(null)}}>{item.label}</button>)}</>;
   const brand=<div><strong>{meta.brand.productName??meta.brand.name??'ArtiSys Pecuária'}</strong><span>Operação local-first</span></div>;
 
-  return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Visão geral'} onLogout={()=>{setAuth(null);setMeta(null);setScreenId(null)}}>
+  return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Visão geral'} onLogout={()=>{setAuth(null);setMeta(null);setScreenId(null);setData(null)}}>
     {notice&&<StatusBanner tone={notice.tone}>{notice.text}</StatusBanner>}
     {data?.cards&&<section className="cards">{Object.entries(data.cards).map(([key,value])=><article key={key}><span>{cardLabel(key)}</span><strong>{show(value)}</strong></article>)}</section>}
     <section className="panel"><div className="panel-heading"><div><span className="eyebrow">Operação</span><h2>{screen?.title}</h2></div><div className="actions">{Object.entries(screen?.actionDefinitions??{}).map(([name,definition])=><button key={name} data-testid={`action-${screenId}-${name}`} onClick={()=>{setAction(name);setNotice(null)}}>{definition.label??name}</button>)}</div></div><DataTable records={rows}/></section>

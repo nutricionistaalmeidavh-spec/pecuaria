@@ -4,6 +4,15 @@ const list=v=>Array.isArray(v)?v.map(clean).filter(Boolean):String(v??'').split(
 const dateTime=v=>v?new Date(v).toISOString():undefined;
 const field=(name,label,type='text',extra={})=>Object.freeze({name,label,type,...extra});
 const form=(title,fields,normalize=(values)=>Object.fromEntries(Object.entries(values).filter(([,v])=>v!==''&&v!=null)))=>Object.freeze({title,fields:Object.freeze(fields),defaults:Object.freeze({}),normalize});
+const iotProfiles=[['serial-rfid','Leitor RFID Serial/USB'],['serial-scale','Balança Serial/USB'],['mqtt-rfid','Leitor RFID MQTT'],['mqtt-scale','Balança MQTT'],['http-rfid','Leitor RFID HTTP local'],['http-scale','Balança HTTP local'],['simulator-rfid','Simulador RFID'],['simulator-scale','Simulador de balança']];
+const iotDevice=v=>{
+  const profileId=clean(v.profileId),base={id:clean(v.id),name:clean(v.name),profileId,stationId:clean(v.stationId)||null,farmId:clean(v.farmId)||null,enabled:String(v.enabled??'true')!=='false'};
+  let config={};
+  if(String(profileId).startsWith('serial-'))config={port:clean(v.port),baudRate:num(v.baudRate)??9600,...(v.delimiter!==''&&v.delimiter!=null?{delimiter:String(v.delimiter)}:{})};
+  else if(String(profileId).startsWith('mqtt-'))config={url:clean(v.url),topics:list(v.topics),username:clean(v.username)||null,...(v.password?{password:v.password}:{}),...(v.token?{token:v.token}:{})};
+  else if(String(profileId).startsWith('http-'))config={baseUrl:clean(v.baseUrl),path:clean(v.path)||'/',pollIntervalMs:num(v.pollIntervalMs)??1000,username:clean(v.username)||null,...(v.password?{password:v.password}:{}),...(v.token?{token:v.token}:{})};
+  return{...base,config};
+};
 
 export const ACTION_FORMS=Object.freeze({
   lots:Object.freeze({
@@ -29,6 +38,17 @@ export const ACTION_FORMS=Object.freeze({
   reports:Object.freeze({
     csv:form('Gerar CSV',[field('type','Relatório','select',{options:[['animal-history','Histórico do animal'],['lot-kpis','Indicadores do lote'],['sanitary','Manejo sanitário']]})],v=>({type:v.type,rows:[]})),
     issue:form('Emitir documento',[field('id','ID'),field('type','Tipo','select',{options:[['animal-history','Histórico do animal'],['lot-kpis','Indicadores do lote'],['sanitary','Manejo sanitário']]}),field('format','Formato','select',{options:[['csv','CSV'],['pdf','PDF']]}),field('content','Conteúdo','textarea')])
+  }),
+  iot:Object.freeze({
+    saveDevice:form('Adicionar ou atualizar dispositivo',[field('id','ID do dispositivo'),field('name','Nome'),field('profileId','Tipo de integração','select',{options:iotProfiles}),field('stationId','Estação/curral'),field('farmId','Fazenda'),field('enabled','Ativar automaticamente','select',{options:[['true','Sim'],['false','Não']]}),field('port','Porta serial/USB',{toString:()=> 'text'}),field('baudRate','Baud rate','number'),field('delimiter','Delimitador serial'),field('url','URL MQTT'),field('topics','Tópicos MQTT','list'),field('baseUrl','URL HTTP local'),field('path','Caminho HTTP'),field('pollIntervalMs','Intervalo HTTP (ms)','number'),field('username','Usuário'),field('password','Senha','password'),field('token','Token','password')],iotDevice),
+    removeDevice:form('Remover dispositivo',[field('id','ID do dispositivo')],v=>({id:clean(v.id)})),
+    testDevice:form('Testar conexão',[field('id','ID do dispositivo')],v=>({id:clean(v.id)})),
+    startDevice:form('Iniciar dispositivo',[field('id','ID do dispositivo')],v=>({id:clean(v.id)})),
+    stopDevice:form('Parar dispositivo',[field('id','ID do dispositivo')],v=>({id:clean(v.id)})),
+    bindRfid:form('Vincular RFID a animal',[field('tagId','Código RFID'),field('animalId','ID do animal')],v=>({tagId:clean(v.tagId),animalId:clean(v.animalId)})),
+    unbindRfid:form('Desvincular RFID',[field('tagId','Código RFID')],v=>({tagId:clean(v.tagId)})),
+    simulateRfid:form('Simular leitura RFID',[field('deviceId','Dispositivo simulador'),field('tagId','Código RFID')],v=>({deviceId:clean(v.deviceId),tagId:clean(v.tagId)})),
+    simulateWeight:form('Simular pesagem',[field('deviceId','Dispositivo simulador'),field('value','Peso','number',{step:'0.1'}),field('unit','Unidade','select',{options:[['kg','kg'],['g','g'],['lb','lb']]}),field('stable','Peso estável','select',{options:[['true','Sim'],['false','Não']]})],v=>({deviceId:clean(v.deviceId),value:num(v.value),unit:v.unit||'kg',stable:String(v.stable??'true')!=='false'}))
   }),
   settings:Object.freeze({
     backup:form('Criar backup',[field('id','Nome/ID do backup')],v=>v.id?{id:clean(v.id)}:{}),

@@ -32,11 +32,17 @@ export function evaluateSecurity({mode='commit',audit,secretFindings=[],semgrep=
   return{status:blockedFindings.length?'blocked':'passed',mode,counts:{...counts,unknown,secrets:secretFindings.length,semgrepErrors:semgrep?.errors?.length??1},blockedFindings};
 }
 
+export function npmAuditInvocation(platform=process.platform,env=process.env){
+  if(platform==='win32')return{command:env.ComSpec||env.COMSPEC||'cmd.exe',args:['/d','/s','/c','npm audit --omit=dev --json']};
+  return{command:'npm',args:['audit','--omit=dev','--json']};
+}
+
 function runNpmAudit(){
-  const command=process.platform==='win32'?'npm.cmd':'npm';
-  const result=spawnSync(command,['audit','--omit=dev','--json'],{cwd:root,encoding:'utf8',windowsHide:true,maxBuffer:8*1024*1024});
+  const invocation=npmAuditInvocation();
+  const result=spawnSync(invocation.command,invocation.args,{cwd:root,encoding:'utf8',windowsHide:true,maxBuffer:8*1024*1024});
   if(result.error)throw result.error;
-  try{return JSON.parse(result.stdout||'{}')}catch{throw new Error('npm audit returned invalid JSON')}
+  const output=result.stdout||'{}';
+  try{return JSON.parse(output)}catch{throw new Error(`npm audit returned invalid JSON${result.stderr?`: ${result.stderr.trim()}`:''}`)}
 }
 
 async function scanSecrets(){

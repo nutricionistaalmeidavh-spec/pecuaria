@@ -8,3 +8,4 @@ export {normalizeRfidReading} from './adapters/rfid.js';
 export {normalizeScaleReading} from './adapters/scale.js';
 export {IOT_PROFILES,SENSITIVE_CONFIG_KEYS,splitSensitiveConfig,validateDeviceDefinition} from './profiles.js';
 export {createPersistentDeviceRegistry} from './persistent-registry.js';
+export {createDeviceManager} from './device-manager.js';

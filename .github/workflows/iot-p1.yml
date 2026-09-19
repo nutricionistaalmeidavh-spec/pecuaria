@@ -1,0 +1,32 @@
+name: Pecuaria IoT P1 Local
+
+on:
+  push:
+    branches:
+      - feature/iot-local-p1
+  workflow_dispatch:
+
+jobs:
+  iot-p1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: P0 IoT contract tests
+        run: node --test tests/iot-core.test.js
+      - name: P1 IoT tests
+        shell: bash
+        run: |
+          files=(tests/iot-p1-*.test.js)
+          if [ -e "${files[0]}" ]; then node --test tests/iot-p1-*.test.js; else echo "P1 tests not added yet"; fi
+      - name: Existing unit and integration tests
+        run: npm test
+      - name: Import boundary
+        run: npm run check:imports
+      - name: Web build
+        run: npm run build:web

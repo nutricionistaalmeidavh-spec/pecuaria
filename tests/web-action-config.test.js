@@ -8,7 +8,7 @@ const expected=Object.entries(contract.actions).flatMap(([screen,actions])=>acti
 
 test('every contracted action has a typed operational form definition',()=>{
   assert.deepEqual(actionFormKeys().sort(),expected);
-  assert.equal(expected.length,16);
+  assert.equal(expected.length,25);
   for(const [screen,actions] of Object.entries(contract.actions)){
     for(const action of actions){
       const form=ACTION_FORMS[screen][action];
@@ -17,7 +17,7 @@ test('every contracted action has a typed operational form definition',()=>{
       assert.equal(typeof form.normalize,'function');
       for(const field of form.fields){
         assert.ok(field.name);
-        assert.ok(['text','number','date','datetime-local','select','textarea','list'].includes(field.type));
+        assert.ok(['text','number','date','datetime-local','select','textarea','list','password'].includes(field.type));
       }
     }
   }
@@ -31,6 +31,10 @@ test('normalizers convert numeric and list fields before RPC',()=>{
   const sale=ACTION_FORMS.trades.create.normalize({id:'t1',type:'sale',partyId:'p1',animalIds:'a1, a2\na3',totalAmountMinor:'250000',occurredAt:'2026-09-19T12:00'});
   assert.deepEqual(sale.animalIds,['a1','a2','a3']);
   assert.equal(sale.totalAmountMinor,250000);
+
+  const device=ACTION_FORMS.iot.saveDevice.normalize({id:'scale-1',name:'Balança',profileId:'mqtt-scale',stationId:'curral',url:'mqtt://192.168.1.20:1883',topics:'peso, status',username:'local',password:'segredo'});
+  assert.deepEqual(device.config.topics,['peso','status']);
+  assert.equal(device.config.password,'segredo');
 });
 
 test('normal UI source does not expose the raw JSON action editor',async()=>{

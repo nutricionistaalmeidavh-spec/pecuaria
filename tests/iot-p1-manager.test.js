@@ -129,3 +129,17 @@ test('Node drivers can list and open serial ports with injected hardware impleme
   assert.deepEqual(received,['TAG-1','TAG-2']);
   assert.deepEqual(calls,[['construct','COM7',19200],['open'],['write','PING'],['close']]);
 });
+
+test('HTTP device connection test fails when the customer endpoint is offline',{skip:!hasDrivers},async()=>{
+  const {createNodeIoTDrivers}=await import(driversUrl);
+  class FakeSerialPort{static async list(){return[]}}
+  const drivers=createNodeIoTDrivers({
+    SerialPortClass:FakeSerialPort,
+    mqttConnect:()=>null,
+    fetchImpl:async()=>{throw new Error('ECONNREFUSED 192.168.1.42')}
+  });
+  const device={id:'http-scale',transport:'http',kind:'scale',config:{baseUrl:'http://192.168.1.42',path:'/weight',pollIntervalMs:1000}};
+  const manager=managerModule.createDeviceManager({registry:fakeRegistry([device]),connectorFactory:drivers.connectorFactory});
+  await assert.rejects(manager.testDevice('http-scale'),/ECONNREFUSED/);
+  assert.equal(manager.getStatus('http-scale').status,'error');
+});

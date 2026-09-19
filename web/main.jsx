@@ -23,8 +23,24 @@ const pickRows=data=>{
   if(Array.isArray(data?.backups))return data.backups;
   return [];
 };
-const cardLabel=key=>({lots:'Lotes',activeAnimals:'Animais ativos',averageWeightKg:'Peso médio (kg)',sanitaryEvents:'Eventos sanitários',trades:'Negociações'}[key]??key);
-const show=v=>v==null?'—':typeof v==='number'?new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(v):String(v);
+const cardLabel=key=>({lots:'Lotes',activeAnimals:'Animais ativos',averageWeightKg:'Peso médio (kg)',sanitaryEvents:'Eventos sanitários',trades:'Negociações',costMinor:'Custos',incomeMinor:'Receitas'}[key]??key);
+const show=(value,key)=>{
+  if(value==null)return '—';
+  if((key==='costMinor'||key==='incomeMinor')&&typeof value==='number')return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(value/100);
+  return typeof value==='number'?new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(value):String(value);
+};
+
+function UpdatePanel({updates,state,onState}){
+  const [busy,setBusy]=useState(false);
+  if(!updates||!state)return null;
+  const version=state.availableVersion?` ${state.availableVersion}`:'';
+  const progress=Math.max(0,Math.min(100,Math.round(state.progress?.percent??0)));
+  const run=async fn=>{setBusy(true);try{onState(await fn())}finally{setBusy(false)}};
+  if(state.status==='available')return <section className="panel" data-testid="update-available"><div className="panel-heading"><div><span className="eyebrow">Atualização disponível</span><h2>Nova versão{version}</h2><p>O download só começa quando você autorizar.</p></div><div className="actions"><button className="primary" disabled={busy} onClick={()=>void run(updates.download)}>Baixar atualização</button></div></div></section>;
+  if(state.status==='downloading')return <StatusBanner tone="info">Baixando atualização… {progress}%</StatusBanner>;
+  if(state.status==='downloaded')return <section className="panel" data-testid="update-downloaded"><div className="panel-heading"><div><span className="eyebrow">Atualização pronta</span><h2>Versão{version} baixada</h2><p>A instalação só ocorre quando você escolher reiniciar.</p></div><div className="actions"><button className="primary" disabled={busy} onClick={()=>void run(updates.install)}>Instalar e reiniciar</button></div></div></section>;
+  return null;
+}
 
 function App(){
   const [backend,setBackend]=useState(null);
@@ -37,8 +53,11 @@ function App(){
   const [credentials,setCredentials]=useState({username:'admin',password:''});
   const [hasUsers,setHasUsers]=useState(true);
   const [notice,setNotice]=useState(null);
+  const [updateState,setUpdateState]=useState(null);
+  const updates=globalThis.artisys?.updates??null;
 
   useEffect(()=>{getBackend().then(async value=>{setBackend(value);setHasUsers((await value.authState()).hasUsers)}).catch(error=>setNotice({tone:'error',text:error.message}))},[]);
+  useEffect(()=>{if(!updates)return;let active=true;updates.state().then(state=>{if(active)setUpdateState(state)}).catch(()=>{});const unsubscribe=updates.onStatus(state=>{if(active)setUpdateState(state)});return()=>{active=false;unsubscribe?.()}},[updates]);
   useEffect(()=>{if(!backend||!auth)return;backend.describe().then(value=>{setMeta(value);setScreenId(current=>current??value.navigation[0]?.id)}).catch(error=>setNotice({tone:'error',text:error.message}))},[backend,auth]);
 
   async function load(id=screenId){
@@ -71,7 +90,9 @@ function App(){
 
   return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Visão geral'} onLogout={()=>{setAuth(null);setMeta(null);setScreenId(null);setData(null)}}>
     {notice&&<StatusBanner tone={notice.tone}>{notice.text}</StatusBanner>}
-    {data?.cards&&<section className="cards">{Object.entries(data.cards).map(([key,value])=><article key={key}><span>{cardLabel(key)}</span><strong>{show(value)}</strong></article>)}</section>}
+    <UpdatePanel updates={updates} state={updateState} onState={setUpdateState}/>
+    {screenId==='settings'&&updates&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Aplicativo</span><h2>Atualizações</h2><p>Versão instalada: {updateState?.currentVersion??'—'}.</p></div><div className="actions"><button data-testid="check-updates" onClick={async()=>{setUpdateState(await updates.check())}}>Verificar atualizações</button></div></div>{updateState?.status==='current'&&<StatusBanner tone="success">Você está usando a versão mais recente.</StatusBanner>}{updateState?.status==='error'&&<StatusBanner tone="error">Não foi possível verificar atualizações agora. O sistema continua disponível offline.</StatusBanner>}</section>}
+    {data?.cards&&<section className="cards">{Object.entries(data.cards).map(([key,value])=><article key={key}><span>{cardLabel(key)}</span><strong>{show(value,key)}</strong></article>)}</section>}
     <section className="panel"><div className="panel-heading"><div><span className="eyebrow">Operação</span><h2>{screen?.title}</h2></div><div className="actions">{Object.entries(screen?.actionDefinitions??{}).map(([name,definition])=><button key={name} data-testid={`action-${screenId}-${name}`} onClick={()=>{setAction(name);setNotice(null)}}>{definition.label??name}</button>)}</div></div><DataTable records={rows}/></section>
     <ActionDialog open={Boolean(action)} definition={activeForm} busy={busy} onClose={()=>setAction(null)} onSubmit={async input=>{setBusy(true);setNotice(null);try{await backend.action({screenId,action,input,auth,context:{}});setAction(null);setNotice({tone:'success',text:'Operação concluída com sucesso.'});await load()}catch(error){setNotice({tone:'error',text:error.message})}finally{setBusy(false)}}}/>
   </DesktopShell>;

@@ -1,0 +1,40 @@
+name: Pecuaria P0-P1 Hardening
+
+on:
+  push:
+    branches:
+      - hardening/pecuaria-p0-p2
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Import boundary
+        run: npm run check:imports
+      - name: Unit and integration tests
+        run: npm test
+      - name: Web build
+        run: npm run build:web
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser E2E
+        run: npm run qa:web
+      - name: Phase 5 functional evidence
+        run: npm run qa:surface
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pecuaria-p1-qa
+          path: |
+            qa-artifacts/*.json
+            qa-artifacts/playwright-report
+          if-no-files-found: warn

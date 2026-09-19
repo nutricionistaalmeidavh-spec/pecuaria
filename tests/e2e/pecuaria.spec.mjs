@@ -1,0 +1,10 @@
+import {test,expect} from '@playwright/test';
+
+test('bootstrap e navegação standalone',async({page})=>{
+  await page.goto('/');
+  await page.getByTestId('password').fill('senha-e2e-123');
+  await page.getByTestId('auth-submit').click();
+  await expect(page.getByText('Gestão Pecuária')).toBeVisible();
+  await page.getByTestId('nav-animals').click();
+  await expect(page.getByRole('heading',{name:'Animais',level:2})).toBeVisible();
+});

@@ -8,11 +8,12 @@ test('desktop updater is configured for GitHub Releases without silent download 
   const pkg=JSON.parse(await read('package.json'));
   const main=await read('electron/main.mjs');
   const preload=await read('electron/preload.cjs');
+  const updater=await read('electron/updater.mjs');
   assert.match(pkg.dependencies?.['electron-updater']??'',/^\^?6\./);
   assert.deepEqual(pkg.build?.publish,[{provider:'github',owner:'nutricionistaalmeidavh-spec',repo:'pecuaria',releaseType:'release'}]);
   assert.match(main,/createUpdateController/);
-  assert.match(main,/autoDownload\s*=\s*false/);
-  assert.match(main,/autoInstallOnAppQuit\s*=\s*false/);
+  assert.match(updater,/autoDownload\s*=\s*false/);
+  assert.match(updater,/autoInstallOnAppQuit\s*=\s*false/);
   assert.match(preload,/updates/);
   assert.match(preload,/check/);
   assert.match(preload,/download/);

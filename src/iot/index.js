@@ -1,8 +1,10 @@
-export { DeviceRegistry } from './core/device-registry.js';
-export { createTelemetryEvent } from './core/telemetry.js';
-export { Connector } from './core/connector.js';
-export { SerialConnector } from './connectors/serial.js';
-export { MqttConnector } from './connectors/mqtt.js';
-export { HttpConnector } from './connectors/http.js';
-export { normalizeRfidReading } from './adapters/rfid.js';
-export { normalizeScaleReading } from './adapters/scale.js';
+export {DeviceRegistry} from './core/device-registry.js';
+export {createTelemetryEvent} from './core/telemetry.js';
+export {Connector} from './core/connector.js';
+export {SerialConnector} from './connectors/serial.js';
+export {MqttConnector} from './connectors/mqtt.js';
+export {HttpConnector} from './connectors/http.js';
+export {normalizeRfidReading} from './adapters/rfid.js';
+export {normalizeScaleReading} from './adapters/scale.js';
+export {IOT_PROFILES,SENSITIVE_CONFIG_KEYS,splitSensitiveConfig,validateDeviceDefinition} from './profiles.js';
+export {createPersistentDeviceRegistry} from './persistent-registry.js';

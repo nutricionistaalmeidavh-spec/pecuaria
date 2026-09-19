@@ -34,6 +34,9 @@ test('main automatically publishes a stable version once and verifies the public
   assert.match(workflow,/target_commitish:\s*\$\{\{ github\.sha \}\}/);
   assert.match(workflow,/Verify published updater feed/);
   assert.match(workflow,/releases\/download/);
+  assert.match(workflow,/curl\.exe/);
+  assert.match(workflow,/attempt -le 15/);
+  assert.match(workflow,/if \(-not \$ok -and \$attempt -lt 15\) \{ Start-Sleep -Seconds 2 \}/);
 });
 
 test('release run evidence can be produced natively without Woodpecker or a customer database',async()=>{

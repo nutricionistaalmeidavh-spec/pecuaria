@@ -12,6 +12,8 @@ import {createAuditService} from './audit.js';
 import {createLocalSearchService} from './services/search.js';
 import {createCattleAlertsService} from './services/alerts.js';
 import {createCattleTransferService} from './services/transfer.js';
+import {createCattleReportingService} from './services/reporting.js';
+import {createCattleDashboardService} from './services/dashboard.js';
 import {createSellAnimalsUseCase} from './use-cases/sell-animals.js';
 
 const rows=records=>records.map(record=>record.payload);
@@ -28,6 +30,8 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
   const search=createLocalSearchService(persistence);
   const alerts=createCattleAlertsService({persistence,recovery});
   const transfer=createCattleTransferService(persistence);
+  const reporting=createCattleReportingService(persistence);
+  const dashboard=createCattleDashboardService({persistence,alerts});
   const sellAnimals=createSellAnimalsUseCase({persistence,audit});
   const shell=createCattleShellModel({capabilities});
 
@@ -56,16 +60,8 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
     overview:{
       kind:'livestock-dashboard',
       async load(){
-        const [lots,animals,events,trades]=await Promise.all([repos.lots.list(),repos.animals.list(),repos.events.list(),repos.trades.list()]);
-        const active=rows(animals).filter(animal=>animal.status==='active');
-        const weights=active.map(animal=>animal.weights?.at(-1)?.weightKg).filter(Number.isFinite);
-        return{cards:{
-          lots:lots.length,
-          activeAnimals:active.length,
-          averageWeightKg:weights.length?weights.reduce((a,b)=>a+b,0)/weights.length:null,
-          sanitaryEvents:rows(events).filter(event=>event.kind==='sanitary').length,
-          trades:trades.length
-        }};
+        const snapshot=await dashboard.snapshot();
+        return{cards:snapshot.kpis,alerts:snapshot.alerts,layout:snapshot.layout};
       }
     },
     lots:{
@@ -172,5 +168,5 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
     }
   };
 
-  return createFunctionalPresentation({shell,screens,services:{security,audit,search,alerts,transfer,localRuntime,recovery}});
+  return createFunctionalPresentation({shell,screens,services:{security,audit,search,alerts,transfer,reporting,dashboard,localRuntime,recovery}});
 }

@@ -9,3 +9,4 @@ export {normalizeScaleReading} from './adapters/scale.js';
 export {IOT_PROFILES,SENSITIVE_CONFIG_KEYS,splitSensitiveConfig,validateDeviceDefinition} from './profiles.js';
 export {createPersistentDeviceRegistry} from './persistent-registry.js';
 export {createDeviceManager} from './device-manager.js';
+export {createCattleIoTBridge} from './cattle-bridge.js';

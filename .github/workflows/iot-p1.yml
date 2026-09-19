@@ -3,6 +3,7 @@ name: Pecuaria IoT P1 Local
 on:
   push:
     branches:
+      - main
       - feature/iot-local-p1
   workflow_dispatch:
 

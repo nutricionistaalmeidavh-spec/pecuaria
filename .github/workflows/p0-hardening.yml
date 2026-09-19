@@ -1,0 +1,26 @@
+name: Pecuaria P0 Hardening
+
+on:
+  push:
+    branches:
+      - hardening/pecuaria-p0-p2
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Import boundary
+        run: npm run check:imports
+      - name: Unit and integration tests
+        run: npm test
+      - name: Web build
+        run: npm run build:web

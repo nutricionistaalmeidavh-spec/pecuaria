@@ -1,0 +1,27 @@
+name: Pecuaria IoT P0
+
+on:
+  push:
+    branches:
+      - feature/iot-ready-p0
+  workflow_dispatch:
+
+jobs:
+  iot-p0:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: IoT P0 contract tests
+        run: node --test tests/iot-core.test.js
+      - name: Existing unit and integration tests
+        run: npm test
+      - name: Import boundary
+        run: npm run check:imports
+      - name: Web build
+        run: npm run build:web

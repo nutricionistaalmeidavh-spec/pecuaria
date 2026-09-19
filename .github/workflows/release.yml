@@ -1,0 +1,127 @@
+name: Pecuaria Certified Windows Release
+
+on:
+  push:
+    branches:
+      - main
+      - release/fully-automated-github
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pecuaria-certified-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  certify-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Mark release start
+        shell: pwsh
+        run: |
+          "ARTISYS_RELEASE_STARTED_AT=$((Get-Date).ToUniversalTime().ToString('o'))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Import boundary
+        run: npm run check:imports
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: Web build
+        run: npm run build:web
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
+      - name: Browser E2E
+        run: npm run qa:web
+
+      - name: Phase 5 functional evidence
+        run: npm run qa:surface
+
+      - name: API contract gate
+        run: npm run qa:contracts
+
+      - name: Security release gate
+        run: npm run qa:security:release
+
+      - name: Product QA gate
+        run: npm run qa:product
+
+      - name: Phase 7 fixture cutover
+        run: npm run phase7
+
+      - name: Build Windows installer and updater metadata
+        run: npm run build:win
+
+      - name: Native release run evidence
+        run: npm run qa:release-run
+        env:
+          GITHUB_ACTIONS: 'true'
+
+      - name: Release validator
+        run: npm run qa:release-validator
+
+      - name: Phase 8 certification
+        run: npm run phase8:certify
+
+      - name: Verify updater assets
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release -Filter 'ArtiSys-Pecuaria-Setup-*.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'Windows installer missing' }
+          if (-not (Test-Path 'release/latest.yml')) { throw 'release/latest.yml missing' }
+          if (-not (Test-Path 'qa-artifacts/release-certification.json')) { throw 'release certification missing' }
+          Write-Host "Installer: $($installer.Name)"
+          Write-Host "SHA256: $((Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant())"
+
+      - name: Validate tag matches package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          if ("v$version" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match package version v$version" }
+
+      - name: Upload certified release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pecuaria-certified-${{ github.sha }}
+          path: |
+            release/ArtiSys-Pecuaria-Setup-*.exe
+            release/latest.yml
+            release/*.blockmap
+            qa-artifacts/*.json
+            qa-artifacts/playwright-report
+          if-no-files-found: warn
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release/ArtiSys-Pecuaria-Setup-*.exe
+            release/latest.yml
+            release/*.blockmap
+            qa-artifacts/release-certification.json
+            qa-artifacts/release-validation.json

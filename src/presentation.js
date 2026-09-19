@@ -9,6 +9,7 @@ import {createCattleTradeEntry,createCattleCost,cattleFinancialMetrics} from './
 import {createDocumentService} from './documents.js';
 import {createSecurityService} from './security.js';
 import {createAuditService} from './audit.js';
+import {createSellAnimalsUseCase} from './use-cases/sell-animals.js';
 
 const rows=records=>records.map(record=>record.payload);
 const required=(record,label)=>{if(!record)throw new Error(`${label} not found.`);return record};
@@ -21,6 +22,7 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
   const documents=createDocumentService(persistence);
   const audit=providedAudit??createAuditService(persistence,{productId:'agro-pecuaria'});
   const security=createSecurityService(persistence,{audit});
+  const sellAnimals=createSellAnimalsUseCase({persistence,audit});
   const shell=createCattleShellModel({capabilities});
 
   async function auditMutation({action,entityType,input,context,result,entityId=null}){
@@ -119,7 +121,17 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
     trades:{
       kind:'trade-workflow',
       load:async()=>({rows:await repos.trades.list()}),
-      actions:{create:audited('cattle.trade.create','trade',input=>repos.trades.save(createCattleTrade(input),{expectedVersion:0}))}
+      actions:{
+        async create(input,context={}){
+          if(input?.type==='sale'){
+            const result=await sellAnimals({...input,actorId:context.actorId??'system'});
+            return result.trade;
+          }
+          const result=await repos.trades.save(createCattleTrade(input),{expectedVersion:0});
+          await auditMutation({action:'cattle.trade.create',entityType:'trade',input,context,result});
+          return result;
+        }
+      }
     },
     finance:{
       kind:'lot-finance',

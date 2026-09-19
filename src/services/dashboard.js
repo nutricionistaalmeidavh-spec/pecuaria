@@ -45,17 +45,26 @@ export function createCattleDashboardService({persistence,alerts}={}){
         if(direction==='expense'||direction==='cost')costMinor+=amount;
         if(direction==='income'||direction==='revenue')incomeMinor+=amount;
       }
+      const kpis=Object.freeze({
+        lots:lots.length,
+        activeAnimals:active.length,
+        averageWeightKg:average(weights),
+        sanitaryEvents:eventRows.filter(event=>event?.kind==='sanitary').length,
+        trades:trades.length,
+        costMinor,
+        incomeMinor
+      });
+      const alertList=Object.freeze([...(alertRows??[])]);
+      const primaryKpis=Object.freeze({
+        activeAnimals:kpis.activeAnimals,
+        averageWeightKg:kpis.averageWeightKg,
+        lots:kpis.lots,
+        alerts:alertList.length
+      });
       return Object.freeze({
-        kpis:Object.freeze({
-          lots:lots.length,
-          activeAnimals:active.length,
-          averageWeightKg:average(weights),
-          sanitaryEvents:eventRows.filter(event=>event?.kind==='sanitary').length,
-          trades:trades.length,
-          costMinor,
-          incomeMinor
-        }),
-        alerts:Object.freeze([...(alertRows??[])]),
+        kpis,
+        primaryKpis,
+        alerts:alertList,
         layout:Object.freeze(validateDashboardLayout(DEFAULT_LAYOUT))
       });
     }

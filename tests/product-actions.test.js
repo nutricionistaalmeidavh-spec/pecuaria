@@ -13,6 +13,11 @@ const contract=JSON.parse(await readFile(new URL('../qa/product-contract.json',i
 const expectedActions=Object.entries(contract.actions)
   .flatMap(([screen,actions])=>actions.map(action=>`${screen}.${action}`))
   .sort();
+const executionOrder=[
+  'lots.save','lots.remove','animals.save','animals.move','animals.lifecycle','weights.record',
+  'sanitary.saveProtocol','sanitary.record','reproduction.record','trades.create','finance.addCost',
+  'finance.fromTrade','reports.csv','reports.issue','settings.backup','settings.restore'
+];
 
 async function authFor(host){
   await host.backend.bootstrap({username:'qa-admin',password:'Qa-Standalone-2026!'});
@@ -74,15 +79,17 @@ test('scenario registry exactly matches and executes all 16 contracted actions',
     };
 
     assert.deepEqual(Object.keys(scenarios).sort(),expectedActions);
+    assert.deepEqual([...executionOrder].sort(),expectedActions);
     assert.equal(expectedActions.length,16);
 
     const covered=[];
-    for(const key of expectedActions){
+    for(const key of executionOrder){
       const result=await scenarios[key]();
       assert.notEqual(result,undefined,`${key} must return a result`);
       covered.push(key);
     }
-    assert.deepEqual(covered,expectedActions);
+    assert.deepEqual(covered,executionOrder);
+    assert.deepEqual([...covered].sort(),expectedActions);
 
     const audit=await host.presentation.services.audit.list();
     assert.ok(audit.some(entry=>entry.action==='settings.restore'));

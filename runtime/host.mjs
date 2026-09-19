@@ -1,1 +1,68 @@
-import {mkdir,readdir,copyFile,stat} from 'node:fs/promises';import {join} from 'node:path';import {fileURLToPath} from 'node:url';import {loadSqlMigrations,openProductPersistence} from '../shared/packages/vertical-persistence/src/index.js';import {createCattlePresentation} from '../src/presentation.js';import {createRpcBackend} from './backend.mjs';const PID='agro-pecuaria',DB='artisys-pecuaria.sqlite',mdir=fileURLToPath(new URL('../migrations/',import.meta.url)),safe=v=>String(v??Date.now()).replace(/[^a-zA-Z0-9._-]/g,'-');export async function createStandaloneHost({dataDir,backupDir=join(dataDir,'backups')}={}){await mkdir(dataDir,{recursive:true});await mkdir(backupDir,{recursive:true});const dbPath=join(dataDir,DB),migrations=await loadSqlMigrations([{namespace:PID,dir:mdir}]),open=()=>openProductPersistence({dbPath,productId:PID,migrations});let current=await open();const call=(n,a)=>current[n](...a);const persistence={productId:PID,putRecord:(...a)=>call('putRecord',a),getRecord:(...a)=>call('getRecord',a),listRecords:(...a)=>call('listRecords',a),listCollections:(...a)=>call('listCollections',a),softDeleteRecord:(...a)=>call('softDeleteRecord',a),recordHistory:(...a)=>call('recordHistory',a),schemaState:(...a)=>call('schemaState',a),health:(...a)=>call('health',a)};async function quiet(work){const old=current;current=null;await old.close();try{return await work()}finally{current=await open()}}const recovery={async createBackup({id=`backup-${Date.now()}`}={}){const bid=safe(id),path=join(backupDir,`${bid}.sqlite`);await quiet(()=>copyFile(dbPath,path));const s=await stat(path);return{id:bid,createdAt:s.mtime.toISOString(),path}},async listBackups(){return Promise.all((await readdir(backupDir)).filter(n=>n.endsWith('.sqlite')).sort().reverse().map(async n=>{const path=join(backupDir,n),s=await stat(path);return{id:n.slice(0,-7),createdAt:s.mtime.toISOString(),path}}))},async restoreBackup(id){const bid=safe(id),source=join(backupDir,`${bid}.sqlite`),safety=join(backupDir,`safety-${Date.now()}.sqlite`);await quiet(async()=>{await copyFile(dbPath,safety);await copyFile(source,dbPath)});return{restored:true,backupId:bid}}};const presentation=createCattlePresentation({persistence,recovery}),backend=createRpcBackend({presentation});return{persistence,recovery,presentation,backend,async close(){const old=current;current=null;await old?.close()}}}
+import {mkdir,readdir,copyFile,stat} from 'node:fs/promises';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {loadSqlMigrations,openProductPersistence} from '../shared/packages/vertical-persistence/src/index.js';
+import {createCattlePresentation} from '../src/presentation.js';
+import {createRpcBackend} from './backend.mjs';
+
+const PID='agro-pecuaria';
+const DB='artisys-pecuaria.sqlite';
+const mdir=fileURLToPath(new URL('../migrations/',import.meta.url));
+const safe=v=>String(v??Date.now()).replace(/[^a-zA-Z0-9._-]/g,'-');
+
+export async function createStandaloneHost({dataDir,backupDir=join(dataDir,'backups')}={}){
+  await mkdir(dataDir,{recursive:true});
+  await mkdir(backupDir,{recursive:true});
+  const dbPath=join(dataDir,DB);
+  const migrations=await loadSqlMigrations([{namespace:PID,dir:mdir}]);
+  const open=()=>openProductPersistence({dbPath,productId:PID,migrations});
+  let current=await open();
+  const call=(name,args)=>{
+    if(!current)throw new Error('Persistence is temporarily unavailable.');
+    return current[name](...args);
+  };
+  const persistence={
+    productId:PID,
+    putRecord:(...a)=>call('putRecord',a),
+    getRecord:(...a)=>call('getRecord',a),
+    listRecords:(...a)=>call('listRecords',a),
+    listCollections:(...a)=>call('listCollections',a),
+    softDeleteRecord:(...a)=>call('softDeleteRecord',a),
+    recordHistory:(...a)=>call('recordHistory',a),
+    schemaState:(...a)=>call('schemaState',a),
+    health:(...a)=>call('health',a),
+    transaction:(...a)=>call('transaction',a)
+  };
+  async function quiet(work){
+    const old=current;
+    current=null;
+    await old.close();
+    try{return await work()}
+    finally{current=await open()}
+  }
+  const recovery={
+    async createBackup({id=`backup-${Date.now()}`}={}){
+      const bid=safe(id),path=join(backupDir,`${bid}.sqlite`);
+      await quiet(()=>copyFile(dbPath,path));
+      const s=await stat(path);
+      return{id:bid,createdAt:s.mtime.toISOString(),path};
+    },
+    async listBackups(){
+      return Promise.all((await readdir(backupDir)).filter(n=>n.endsWith('.sqlite')).sort().reverse().map(async n=>{
+        const path=join(backupDir,n),s=await stat(path);
+        return{id:n.slice(0,-7),createdAt:s.mtime.toISOString(),path};
+      }));
+    },
+    async restoreBackup(id){
+      const bid=safe(id),source=join(backupDir,`${bid}.sqlite`),safety=join(backupDir,`safety-${Date.now()}.sqlite`);
+      await quiet(async()=>{
+        await copyFile(dbPath,safety);
+        await copyFile(source,dbPath);
+      });
+      return{restored:true,backupId:bid};
+    }
+  };
+  const presentation=createCattlePresentation({persistence,recovery});
+  const backend=createRpcBackend({presentation});
+  return{persistence,recovery,presentation,backend,async close(){const old=current;current=null;await old?.close()}};
+}

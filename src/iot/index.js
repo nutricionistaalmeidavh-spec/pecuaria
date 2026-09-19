@@ -10,3 +10,4 @@ export {IOT_PROFILES,SENSITIVE_CONFIG_KEYS,splitSensitiveConfig,validateDeviceDe
 export {createPersistentDeviceRegistry} from './persistent-registry.js';
 export {createDeviceManager} from './device-manager.js';
 export {createCattleIoTBridge} from './cattle-bridge.js';
+export {createIoTService} from './service.js';

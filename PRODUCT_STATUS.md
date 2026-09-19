@@ -9,26 +9,57 @@
 
 ## Hardening P0
 
-O núcleo P0 foi endurecido na branch `hardening/pecuaria-p0-p2` sem dual-write nas tabelas legadas e sem alterar `main`.
+O P0 endureceu o núcleo local-first sem criar dual-write nas tabelas legadas:
 
-Verificação automatizada concluída no commit `ebb01c8034508158bbd9856686a885d97a4699ce`:
+- transações atômicas na persistência;
+- invariantes pecuárias e unicidade concorrente de identificação animal;
+- RBAC explícito de Settings/Backup/Restore;
+- auditoria persistente com sanitização de credenciais e ator derivado da sessão;
+- venda atômica (`trade + lifecycle + financeiro + audit`) com rollback;
+- QA funcional das 16 ações contratadas.
 
-- suíte Node: **40/40 testes passando**;
-- import boundary: **passed**;
-- build web: **passed**;
-- UI surface coverage: **10/10 telas**;
-- functional action coverage: **16/16 ações contratadas executadas**;
-- negative-domain coverage: **passed** para os casos obrigatórios do P0;
-- RBAC de Settings/Backup/Restore: **passed**;
-- auditoria local persistente e sanitização de credenciais: **passed**;
-- venda atômica com rollback induzido e reabertura do SQLite: **passed**;
-- backup/restore e persistência após reinício: **passed**.
+## Hardening P1 — verificado
 
-A evidência `phase5-summary.json` foi produzida e anexada pelo workflow `Pecuaria P0 Hardening` no mesmo commit verificado.
+O P1 foi concluído na branch `hardening/pecuaria-p0-p2` e verificado no commit `54576fdaccc5be1e4fa7f98f328201b3cc9d7555` pelo workflow `Pecuaria P0-P1 Hardening` (run `35469526384`).
+
+Evidência do mesmo commit:
+
+- import boundary: **passed** (`53` arquivos/imports verificados);
+- suíte Node: **52/52 testes passando**;
+- build web Vite: **passed**;
+- Playwright Chromium: **2/2 testes E2E passando**;
+- UI surface: **10/10 telas**;
+- functional actions: **16/16 ações contratadas executadas**;
+- RBAC: **passed**;
+- backup/restore: **passed**;
+- artefato QA anexado pelo Actions: `pecuaria-p1-qa`.
+
+### Entregas do P1
+
+1. **Frontend operacional**
+   - editor JSON removido do fluxo normal;
+   - formulários tipados para as 16 ações;
+   - normalização de números, listas e datas antes do RPC;
+   - shell desktop responsivo, tabelas, diálogos e feedback operacional;
+   - Browser E2E percorre as 10 telas e abre os formulários das ações.
+
+2. **Backup verificável**
+   - SHA-256 e metadata sidecar por backup;
+   - `PRAGMA integrity_check` e validação do `product_id`;
+   - backup corrompido rejeitado antes de tocar no banco ativo;
+   - safety backup obrigatório antes de restore;
+   - retention local configurável, preservando safety/protected backups.
+
+3. **Serviços locais reutilizáveis**
+   - busca local limitada às collections de negócio da Pecuária;
+   - alertas derivados para sanidade, pesagem e idade do backup;
+   - exportação JSON versionada;
+   - importação `validate`/`append` com rejeição de IDs duplicados e sem overwrite silencioso;
+   - nenhuma nova tela/ação contratada e nenhuma dependência SaaS obrigatória.
 
 ## Fases 5–6
 
-A Fase 5 de superfície/ações locais já possui execução fresca automatizada no hardening P0. A homologação completa de release ainda exige o fluxo Windows/Playwright previsto pelo `npm run phase5` e os gates subsequentes.
+A Fase 5 local possui execução fresca automatizada com Node + Browser E2E. O build/certificação final do instalador Windows continua sendo um gate de release separado.
 
 ## Fase 7
 
@@ -44,4 +75,4 @@ $env:ARTISYS_LEGACY_DB="C:\caminho\artisys-pecuaria.sqlite"; npm run release:cer
 
 Evidências finais de release: `phase5-summary.json`, `phase7-summary.json`, `playwright-summary.json` e `release-certification.json` em `qa-artifacts/`.
 
-**Estado:** P0 de hardening verificado. P1/P2 e a homologação final Windows/instalador permanecem separados; promoção para `main` continua bloqueada até certificação real `passed` vinculada ao mesmo commit. Monorepo preservado como rollback.
+**Estado:** P0 e P1 implementados e verificados. A integração do código em `main` foi autorizada separadamente da certificação de release. P2 e a homologação final Windows/banco legado real/instalador permanecem pendentes; merge em `main` não equivale à certificação final de distribuição. Monorepo preservado como rollback.

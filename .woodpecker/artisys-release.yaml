@@ -3,7 +3,7 @@ labels:
   backend: local
 
 when:
-  - event: [push, manual]
+  - event: [manual]
 
 steps:
   - name: artisys-release

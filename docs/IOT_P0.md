@@ -76,3 +76,7 @@ Os adapters normalizam leituras brutas. Eles não gravam animais nem pesagens no
 ## Segurança para desenvolvimento paralelo
 
 O módulo é acessível somente por `src/iot/index.js`. Nenhum arquivo de domínio existente importa o módulo IoT. Assim, a branch pode ser atualizada/rebaseada sobre o hardening principal com baixa chance de conflito.
+
+## Verificação
+
+A branch possui workflow próprio (`Pecuaria IoT P0`) que executa os contratos IoT, a suíte existente, a checagem de imports standalone e o build web. O workflow é restrito a `feature/iot-ready-p0`, portanto não altera nem bloqueia o CI do hardening paralelo.

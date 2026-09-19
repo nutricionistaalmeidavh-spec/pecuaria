@@ -106,3 +106,26 @@ test('simulator profile can inject readings without physical hardware',{skip:!ha
   assert.equal(manager.getStatus('sim-rfid').status,'connected');
   assert.equal(readings[0].reading.tagId,'123456789');
 });
+
+test('Node drivers can list and open serial ports with injected hardware implementation',{skip:!hasDrivers},async()=>{
+  const {createNodeIoTDrivers}=await import(driversUrl);
+  const calls=[];
+  class FakeSerialPort{
+    static async list(){return[{path:'COM7',manufacturer:'Teste'}]}
+    constructor(options){this.options=options;this.isOpen=false;this.handlers=new Map();calls.push(['construct',options.path,options.baudRate])}
+    on(event,handler){this.handlers.set(event,handler);return this}
+    open(callback){this.isOpen=true;calls.push(['open']);callback?.(null)}
+    close(callback){this.isOpen=false;calls.push(['close']);callback?.(null)}
+    write(data,callback){calls.push(['write',data]);callback?.(null)}
+  }
+  const drivers=createNodeIoTDrivers({SerialPortClass:FakeSerialPort,mqttConnect:()=>null,fetchImpl:async()=>({ok:true,status:200,json:async()=>({})})});
+  assert.deepEqual(await drivers.listSerialPorts(),[{path:'COM7',manufacturer:'Teste'}]);
+  const connector=await drivers.connectorFactory({id:'serial-7',transport:'serial',kind:'rfid',config:{port:'COM7',baudRate:19200,dataBits:8,stopBits:1,parity:'none',delimiter:'\n'}});
+  const received=[];connector.onData(data=>received.push(data));
+  await connector.connect();
+  connector.transport.port.handlers.get('data')(Buffer.from('TAG-1\nTAG-2\n'));
+  await connector.write('PING');
+  await connector.disconnect();
+  assert.deepEqual(received,['TAG-1','TAG-2']);
+  assert.deepEqual(calls,[['construct','COM7',19200],['open'],['write','PING'],['close']]);
+});

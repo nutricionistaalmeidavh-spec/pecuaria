@@ -1,15 +1,16 @@
 # ArtiSys Pecuária — Status do Produto
 
 - Produto: `agro-pecuaria`
+- Versão estável atual: `1.0.0`
 - Banco: `artisys-pecuaria.sqlite`
 - Migration obrigatória: `agro-pecuaria/001-initial.sql`
 - Telas contratadas atuais: **11**
 - Ações contratadas atuais: **25**
 - Dependência paga obrigatória: **nenhuma**
 
-## P0/P1 — núcleo e operação
+## Produto
 
-O produto mantém o núcleo local-first com:
+O núcleo é local-first e mantém:
 
 - persistência transacional;
 - invariantes pecuárias;
@@ -17,120 +18,87 @@ O produto mantém o núcleo local-first com:
 - venda atômica com rollback;
 - formulários operacionais tipados;
 - backup verificável com SHA-256 e safety backup;
-- busca, alertas e importação/exportação locais.
+- busca, alertas e importação/exportação locais;
+- reporting e dashboard derivados da fonte de verdade persistida.
 
-## IoT opcional — preservado
+## IoT opcional
 
-A integração P0/P1 de IoT permanece incorporada e opcional, sem custo recorrente obrigatório:
+A superfície IoT permanece opcional e sem custo recorrente obrigatório:
 
-- tela `iot` / **Dispositivos e IoT**;
+- tela **Dispositivos e IoT**;
 - RFID/EID e balança;
 - conectores serial, MQTT e HTTP;
 - registry persistente e secret store local;
 - simuladores para validação sem hardware;
-- ausência de hardware ou integração não impede o uso normal do sistema.
+- falha/ausência de hardware não impede o uso normal do produto.
 
-O contrato atual contém **11 telas e 25 ações**, incluindo as 9 ações IoT.
+O contrato atual contém **11 telas e 25 ações**, incluindo 9 ações IoT.
 
-## Reporting e dashboard
+## Atualização via GitHub Releases
 
-O hardening adiciona serviços locais reutilizáveis sem remover a superfície IoT:
+O desktop usa atualização não silenciosa:
 
-- histórico por animal;
-- KPIs por lote;
-- relatório sanitário;
-- CSV com escaping seguro;
-- dashboard derivado da fonte de verdade persistida;
-- preservação dos KPIs existentes de sanidade e negociações;
-- novos KPIs financeiros de custos e receitas;
-- nenhuma cache paralela de escrita.
-
-## Atualização de versão via GitHub Releases
-
-O desktop está preparado para atualização não silenciosa:
-
-- checagem automática somente no executável empacotado;
+- consulta o canal GitHub Releases;
 - `autoDownload = false`;
 - `autoInstallOnAppQuit = false`;
 - sem downgrade automático;
-- sem prerelease para o canal normal;
-- aviso de versão disponível;
+- sem prerelease no canal normal;
 - **Baixar atualização** exige ação do usuário;
 - **Instalar e reiniciar** exige nova ação explícita;
 - **Verificar atualizações** disponível em Configurações;
-- falha de internet não bloqueia o funcionamento local;
-- nenhum `GH_TOKEN` é embutido no cliente.
+- falha de internet não bloqueia a operação local;
+- nenhum `GH_TOKEN` é embutido no executável.
 
-O canal é GitHub Releases. O build Windows usa `--publish never`; build, certificação e publicação continuam separados.
+## Gates P2
 
-## P2 — gates de produto e release
+A cadeia de QA/release possui:
 
-### API Contracts
-
-- contrato versionado em `qa/api-contract.json`;
-- baseline SHA-256 em `qa/api-contract.baseline.json`;
-- drift do contrato atual de 11 telas/25 ações bloqueia o gate.
-
-### Security Gate
-
-- `npm audit --omit=dev --json`;
-- scanner de segredos em arquivos versionados;
-- suporte a evidência Semgrep;
-- `HIGH`, `CRITICAL` e severidade desconhecida bloqueiam commit;
-- release também bloqueia findings médios/moderados.
-
-### Product QA
-
-Exige no mesmo commit:
-
-- Fase 5;
-- Playwright;
-- API Contracts;
-- Security.
-
-Evidência ausente, stale ou reprovada bloqueia o produto.
-
-### Release Validator
-
-Exige no mesmo commit:
-
-- Fase 5;
-- Fase 7;
-- Playwright;
+- API Contracts com baseline SHA-256;
+- Security Gate fail-closed;
 - Product QA;
-- Security;
-- API Contracts;
-- instalador Windows real maior que 1 MiB;
-- nome, timestamp e SHA-256 compatíveis com `release-run.json`.
+- Phase 7 data cutover;
+- Release Validator;
+- Phase 8 certification.
 
-## Fase 7 — banco legado real
+Security em release bloqueia findings `MEDIUM`, `HIGH`, `CRITICAL` e desconhecidos. O runner Windows usa `cmd.exe`/`ComSpec` para executar `npm audit` de forma portável.
 
-`npm run phase7` opera somente sobre cópia sandbox do banco informado por `ARTISYS_LEGACY_DB`. O original precisa permanecer byte a byte inalterado. WAL ativo bloqueia o ensaio.
+## Fase 7 sem banco de cliente
 
-Sem banco real indicado, a certificação final falha explicitamente.
+Como o produto ainda não possui cliente com base anterior, `npm run phase7` usa por padrão uma fixture SQLite versionada em `qa/fixtures/legacy-fixture.sql`.
 
-## Fase 8 — distribuição certificada
+O ensaio gera a base temporária, migra apenas uma cópia sandbox, testa escrita/reabertura e backup/restore, preserva tabelas preexistentes e exige hash inalterado da fonte.
 
-A Fase 8 exige todas as evidências do mesmo commit:
+`ARTISYS_LEGACY_DB` continua disponível apenas como homologação adicional quando futuramente existir uma base real anterior.
 
-- `phase5-summary.json`;
-- `playwright-summary.json`;
-- `api-contract-summary.json`;
-- `security-summary.json`;
-- `product-qa-summary.json`;
-- `phase7-summary.json`;
-- `release-validation.json`;
-- `release-certification.json`.
+## Release GitHub automatizada
+
+`.github/workflows/release.yml` executa em `windows-latest`:
+
+1. import boundary e testes;
+2. build web e Playwright;
+3. Fase 5 — 11/11 telas e 25/25 ações;
+4. API Contracts;
+5. Security em modo release;
+6. Product QA;
+7. Fase 7 com fixture;
+8. build `ArtiSys-Pecuaria-Setup-*.exe` + `latest.yml`;
+9. `release-run.json` com SHA-256;
+10. Release Validator;
+11. Fase 8;
+12. validação final dos artefatos;
+13. upload das evidências.
+
+Uma tag `vX.Y.Z` que coincida com `package.json` publica, somente após esses gates, o instalador e metadados no GitHub Release. Esse é o canal consumido pelo updater do cliente.
 
 ## Woodpecker
 
-O Woodpecker permanece **somente manual**:
+O Woodpecker continua opcional e **somente manual**:
 
 ```yaml
 when:
   - event: [manual]
 ```
 
-O wrapper Windows executa os gates P2, Fase 7, Release Validator e Fase 8 antes de considerar a distribuição aprovada.
+Ele não é requisito para QA, build, certificação ou publicação normal.
 
-**Estado:** P0/P1 e IoT P0/P1 estão preservados. Reporting/dashboard, updater e gates P2 estão implementados sobre a linha atual do produto. A linha de integração parte da `main` com IoT já incorporado, evitando regressão do trabalho paralelo. A certificação de distribuição continua exigindo uma execução manual no Windows com banco legado real e instalador gerado no mesmo commit; merge de código não equivale à certificação da distribuição.
+**Estado:** P0/P1, IoT P0/P1, reporting/dashboard, updater e P2 estão integrados no fluxo de produto. O repositório possui caminho autônomo de QA + build Windows + certificação via GitHub Actions e não depende de banco legado de cliente para homologar releases enquanto não existir instalação anterior real.

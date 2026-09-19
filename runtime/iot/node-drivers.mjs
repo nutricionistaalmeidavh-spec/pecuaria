@@ -51,16 +51,36 @@ function createMqttRuntimeConnector(device,mqttConnect){
   };
 }
 
+function httpHeaders(config){
+  const headers={};
+  if(config.token)headers.authorization=`Bearer ${config.token}`;
+  else if(config.username||config.password){
+    const encoded=Buffer.from(`${config.username??''}:${config.password??''}`,'utf8').toString('base64');
+    headers.authorization=`Basic ${encoded}`;
+  }
+  return headers;
+}
+
 function createPollingHttpConnector(device,fetchImpl){
   const base=new HttpConnector({id:device.id,baseUrl:device.config.baseUrl,fetchImpl});
   let timer=null;
   const interval=Math.max(250,Number(device.config.pollIntervalMs??1000));
+  const requestOptions={headers:httpHeaders(device.config)};
   const originalConnect=base.connect.bind(base),originalDisconnect=base.disconnect.bind(base);
+  const poll=async({required=false}={})=>{
+    try{
+      const payload=await base.request(device.config.path??'/',requestOptions);
+      base.emitData(payload);
+      return payload;
+    }catch(error){
+      if(required)throw error;
+      return null;
+    }
+  };
   base.connect=async()=>{
     await originalConnect();
-    const poll=async()=>{try{const payload=await base.request(device.config.path??'/');base.emitData(payload);}catch{} };
-    await poll();
-    timer=setInterval(poll,interval);
+    await poll({required:true});
+    timer=setInterval(()=>{void poll();},interval);
   };
   base.disconnect=async()=>{if(timer){clearInterval(timer);timer=null;}await originalDisconnect();};
   return base;

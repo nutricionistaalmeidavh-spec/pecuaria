@@ -19,7 +19,7 @@ function createMemoryPersistence(){
       const record={id,payload:structuredClone(payload),version:version+1,deleted:false};b.set(id,record);return structuredClone(record);
     },
     async getRecord(collection,id){const r=bucket(collection).get(id);return !r||r.deleted?null:structuredClone(r)},
-    async listRecords(collection){return [...bucket(collection).values()].filter(r=>!r.deleted).map(structuredClone)},
+    async listRecords(collection){return [...bucket(collection).values()].filter(r=>!r.deleted).map(r=>structuredClone(r))},
     async softDeleteRecord(collection,id){const b=bucket(collection),r=b.get(id);if(!r)return false;b.set(id,{...r,deleted:true,version:r.version+1});return true;}
   };
 }

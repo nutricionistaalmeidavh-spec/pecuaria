@@ -7,7 +7,8 @@ import {getActionForm} from './action-config.js';
 import {ActionDialog,AnimalDetail,CorralFlow,DataTable,DesktopShell,StatusBanner,WorkspaceScreen,FinanceMetrics,ReproductionSummary} from './components.jsx';
 import {OverviewDashboard} from './dashboard.jsx';
 import {ActionResultPanel,PastureDecisionPanel,ReproductionDecisionPanel,SanitaryAnalyticsPanel,ProductiveIntelligencePanel,FinanceDecisionPanel,CommercialSummaryPanel,FieldModePanel,CommercialSimulator,AdvancedReportsPanel,IoTDetailsPanel} from './depth-components.jsx';
-import {AdvancedReproductionCapture,SanitaryApplicationsPanel} from './depth-operations.jsx';
+import {SanitaryApplicationsPanel} from './depth-operations.jsx';
+import {ProfessionalReproductionPanel,UserAdministrationPanel} from './pro-management.jsx';
 import {Icon} from './icons.jsx';
 import './styles.css';
 
@@ -15,7 +16,7 @@ async function getBackend(){
   if(globalThis.artisys)return globalThis.artisys;
   const persistence=createBrowserPersistence({productId:'agro-pecuaria'});
   const recovery=createBrowserRecovery(persistence);
-  return createRpcBackend({presentation:createCattlePresentation({persistence,recovery})});
+  return createRpcBackend({presentation:createCattlePresentation({persistence,recovery}),persistence});
 }
 
 const pickRows=data=>{
@@ -83,6 +84,8 @@ function App(){
   const [auditResults,setAuditResults]=useState(null);
   const [depthInsights,setDepthInsights]=useState(null);
   const [simulationResult,setSimulationResult]=useState(null);
+  const [reproductionAdminState,setReproductionAdminState]=useState(null);
+  const [userAdminState,setUserAdminState]=useState(null);
   const updates=globalThis.artisys?.updates??null;
 
   useEffect(()=>{getBackend().then(async value=>{setBackend(value);setHasUsers((await value.authState()).hasUsers)}).catch(error=>setNotice({tone:'error',text:error.message}))},[]);
@@ -104,6 +107,16 @@ function App(){
     backend.insights({scope,auth,options:{}}).then(value=>{if(active)setDepthInsights(value)}).catch(error=>{if(active){setDepthInsights(null);setNotice({tone:'error',text:error.message})}});
     return()=>{active=false};
   },[backend,auth,screenId,data]);
+
+  useEffect(()=>{
+    if(!backend||!auth||screenId!=='reproduction'){setReproductionAdminState(null);return;}
+    let active=true;backend.reproductionAdmin({auth,operation:'state'}).then(value=>{if(active)setReproductionAdminState(value)}).catch(error=>{if(active)setNotice({tone:'error',text:error.message})});return()=>{active=false};
+  },[backend,auth,screenId,data]);
+
+  useEffect(()=>{
+    if(!backend||!auth||screenId!=='settings'){setUserAdminState(null);return;}
+    let active=true;backend.userAdmin({auth,operation:'state'}).then(value=>{if(active)setUserAdminState(value)}).catch(()=>{if(active)setUserAdminState(null)});return()=>{active=false};
+  },[backend,auth,screenId]);
 
   async function login(event){
     event.preventDefault();setNotice(null);
@@ -151,6 +164,8 @@ function App(){
     return null;
   };
   const runAction=async(id,name,input)=>backend.action({screenId:id,action:name,input,auth,context:{}});
+  const runReproductionAdmin=async(operation,input)=>{try{await backend.reproductionAdmin({auth,operation,input});setReproductionAdminState(await backend.reproductionAdmin({auth,operation:'state'}));if(operation==='recordService')await load('reproduction');setNotice({tone:'success',text:'Gestão reprodutiva atualizada.'})}catch(error){setNotice({tone:'error',text:error.message});throw error}};
+  const runUserAdmin=async(operation,input)=>{try{await backend.userAdmin({auth,operation,input});setUserAdminState(await backend.userAdmin({auth,operation:'state'}));setNotice({tone:'success',text:'Administração de usuários atualizada.'})}catch(error){setNotice({tone:'error',text:error.message});throw error}};
   const navigation=<>{meta.navigation.map(item=><button key={item.id} data-testid={`nav-${item.id}`} className={`nav-item ${item.id===screenId?'on':''}`} onClick={()=>navigate(item.id)}><Icon name={item.icon} size={19}/><span>{item.label}</span></button>)}</>;
   const brand=<div className="brand-lockup"><span className="brand-mark"><Icon name="beef" size={26}/></span><span><strong>{meta.brand.productName??meta.brand.name??'ArtiSys Pecuária'}</strong><small>Pecuária</small></span></div>;
   const secondaryRecords=screenId==='inventory'?data?.movements:screenId==='pastures'?data?.occupancy:screenId==='sanitary'?data?.protocols:null;
@@ -160,13 +175,14 @@ function App(){
   return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Dashboard'} notificationCount={screenId==='overview'?(data?.alerts?.length??0):0}
     onSearch={async term=>{try{setSearchResults(await backend.search({term,auth}));setAlertResults(null)}catch(error){setNotice({tone:'error',text:error.message})}}}
     onNotifications={async()=>{try{setAlertResults(await backend.alerts({auth}));setSearchResults(null)}catch(error){setNotice({tone:'error',text:error.message})}}}
-    onLogout={async()=>{try{await backend.logout(auth)}catch{}finally{setAuth(null);setMeta(null);setScreenId(null);setData(null);setReferences({});setActionResult(null);setAuditResults(null);setDepthInsights(null);setSimulationResult(null)}}}>
+    onLogout={async()=>{try{await backend.logout(auth)}catch{}finally{setAuth(null);setMeta(null);setScreenId(null);setData(null);setReferences({});setActionResult(null);setAuditResults(null);setDepthInsights(null);setSimulationResult(null);setReproductionAdminState(null);setUserAdminState(null)}}}>
     {notice&&<StatusBanner tone={notice.tone}>{notice.text}</StatusBanner>}
     {actionResult&&<ActionResultPanel result={actionResult} onClose={()=>setActionResult(null)}/>} 
     {searchResults&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Busca global</span><h2>Resultados</h2><p>{searchResults.length} registro(s) encontrado(s).</p></div><button className="ghost" onClick={()=>setSearchResults(null)}>Fechar</button></div><DataTable records={searchResults}/><div className="actions">{searchResults.map((r,i)=><button data-testid={`search-open-${i}`} key={r.id??i} onClick={()=>{openEntity(r);setSearchResults(null)}}>Abrir registro</button>)}</div></section>}
     {alertResults&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Central de alertas</span><h2>Pendências</h2><p>{alertResults.length} alerta(s) operacional(is).</p></div><button className="ghost" onClick={()=>setAlertResults(null)}>Fechar</button></div><DataTable records={alertResults}/><div className="actions">{alertResults.filter(a=>a.target).map(a=><button key={a.id} onClick={()=>{navigate(a.target,a.targetId);setAlertResults(null)}}>Abrir {a.target}</button>)}</div></section>}
     <UpdatePanel updates={updates} state={updateState} onState={setUpdateState}/>
     {screenId==='settings'&&updates&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Aplicativo</span><h2>Atualizações</h2><p>Versão instalada: {updateState?.currentVersion??'—'}.</p></div><div className="actions"><button data-testid="check-updates" onClick={async()=>{setUpdateState(await updates.check())}}>Verificar atualizações</button></div></div>{updateState?.status==='current'&&<StatusBanner tone="success">Você está usando a versão mais recente.</StatusBanner>}{updateState?.status==='error'&&<StatusBanner tone="error">Não foi possível verificar atualizações agora. O sistema continua disponível offline.</StatusBanner>}</section>}
+    {screenId==='settings'&&userAdminState&&<UserAdministrationPanel state={userAdminState} onAction={runUserAdmin}/>} 
     {screenId==='settings'&&<section className="panel" data-testid="audit-panel"><div className="panel-heading"><div><span className="eyebrow">Segurança</span><h2>Trilha de auditoria</h2><p>Consulta local das operações registradas para perfis autorizados.</p></div><div className="actions"><button type="button" onClick={async()=>{try{setAuditResults(await backend.audit({auth,filter:{limit:100}}))}catch(error){setNotice({tone:'error',text:error.message})}}}>Carregar auditoria</button></div></div>{auditResults&&<DataTable records={auditResults}/>}</section>}
     {screenId==='overview'?<OverviewDashboard data={data} onNavigate={navigate}/>:<>
       {screenId==='finance'&&<section className="panel" data-testid="finance-lot-selector"><div className="panel-heading"><div><span className="eyebrow">Resultado por lote</span><h2>Escolha o lote analisado</h2><p>Os indicadores econômicos abaixo são recalculados para o lote selecionado.</p></div></div><div className="form-grid"><label><span>Lote</span><select value={financeLotId} onChange={e=>setFinanceLotId(e.target.value)}><option value="">Selecione um lote</option>{(references.lots??[]).map(lot=><option key={lot.id} value={lot.id}>{lot.name??lot.id}</option>)}</select></label></div></section>}
@@ -174,7 +190,7 @@ function App(){
       {screenId==='finance'&&<FinanceDecisionPanel insights={depthInsights}/>} 
       {screenId==='reproduction'&&<ReproductionSummary records={rows} metrics={data?.metrics}/>} 
       {screenId==='reproduction'&&<ReproductionDecisionPanel insights={depthInsights}/>} 
-      {screenId==='reproduction'&&<AdvancedReproductionCapture animals={reproductionFemales} onRecord={async input=>{try{await runAction('reproduction','record',input);await load('reproduction');setNotice({tone:'success',text:'Serviço reprodutivo avançado registrado.'})}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
+      {screenId==='reproduction'&&reproductionAdminState&&<ProfessionalReproductionPanel state={reproductionAdminState} animals={reproductionFemales} onAction={runReproductionAdmin}/>} 
       {screenId==='sanitary'&&<SanitaryAnalyticsPanel insights={depthInsights}/>} 
       {screenId==='sanitary'&&<SanitaryApplicationsPanel events={data?.events??[]}/>} 
       {screenId==='pastures'&&<PastureDecisionPanel insights={depthInsights}/>} 

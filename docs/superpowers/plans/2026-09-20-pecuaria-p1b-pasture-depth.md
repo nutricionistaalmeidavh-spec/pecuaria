@@ -53,7 +53,7 @@ createPastureRotationPlan({id,pastureId,lotId,plannedEnterAt,plannedLeaveAt,stat
 - [ ] Validate assessment score within supplied scale; `heightCm`, `forageMassKgHa` non-negative; `groundCoverPct` 0..100; `photoPaths` strings only.
 - [ ] Validate body condition score against scale bounds and valid date.
 - [ ] Validate rotation plan leave date > enter date and status in `planned|active|completed|cancelled`.
-- [ ] Add repositories for `cattle.pasture-assessments`, `cattle.body-condition`, `cattle.pasture-rotation-plan` and expand `P1_COLLECTIONS` accordingly. Update tests that currently assert length 7 to the exact new length.
+- [ ] Add repositories for `cattle.pasture-assessments`, `cattle.body-condition`, `cattle.pasture-rotation-plan` and expand `P1_COLLECTIONS` accordingly. Update tests that currently assert length 7 to the exact new length 10.
 - [ ] Run `node --test tests/pasture-domain-p1b.test.js tests/p1-market-depth.test.js tests/p1-depth.test.js` and verify PASS.
 - [ ] Commit: `feat: add pasture assessment and rotation domain records`.
 
@@ -76,7 +76,7 @@ createPastureManagementService(persistence) -> {
 ```
 
 - [ ] Write RED tests for save/assessment/body score/plan and a full enter→leave occupancy cycle.
-- [ ] Add test that one lot cannot have two simultaneous active occupancies unless the existing domain already explicitly supports that; use fail-closed behavior for P1B.
+- [ ] Add test and implementation invariant: one lot may have at most one simultaneous active `cattle.pasture-occupancy`. A second active entry for the same lot is rejected before writing.
 - [ ] Add test that one pasture with an active occupancy reports `occupied`; after final exit it reports `resting` until the configured rest target is met, then `available`, unless manually `unavailable`.
 - [ ] Implement mutating methods using the existing P1 repositories. For multi-record status/occupancy changes use `persistence.transaction`.
 - [ ] Reuse `createPastureOccupancy`; do not create another occupancy ledger.
@@ -150,13 +150,13 @@ Intermediate total after P1B: **17 screens / 61 actions / 17 RPCs**.
 - Modify: `src/services/reporting-base.js`
 - Modify: `src/services/reporting.js`
 - Modify: `tests/product-services.test.js`
-- Modify: `tests/reporting.test.js` if present, otherwise add `tests/pasture-reporting-p1b.test.js`
+- Create: `tests/pasture-reporting-p1b.test.js`
 
 - [ ] Add tests proving assessments/rotation/body-condition records are locally searchable where appropriate without exposing unsupported binary data.
 - [ ] Add transfer allow-list support for the new business collections; validate records before append and preserve duplicate-id rejection.
 - [ ] Extend pasture report data with latest assessment and planned-vs-actual fields while keeping old columns/consumers backward readable.
 - [ ] Verify old pasture records lacking all new fields still load and report without migration/backfill.
-- [ ] Run relevant service/report tests plus `npm test`.
+- [ ] Run `node --test tests/product-services.test.js tests/pasture-reporting-p1b.test.js` and then `npm test`.
 - [ ] Commit: `feat: integrate pasture depth with local services and reports`.
 
 ---

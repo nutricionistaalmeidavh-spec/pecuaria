@@ -65,14 +65,14 @@ const workspaceDescriptions={
   settings:'Administre backup, restauração e preferências locais do sistema.'
 };
 
-export function WorkspaceScreen({screenId,screen,icon,records,onAction}){
+export function WorkspaceScreen({screenId,screen,icon,records,onAction,allowedActions=null}){
   return <section className="workspace-screen panel" data-testid="workspace-screen">
     <div className="workspace-screen-heading">
       <div className="workspace-screen-intro">
         <span className="workspace-screen-icon" data-testid="workspace-screen-icon"><Icon name={icon} size={21}/></span>
         <div><span className="eyebrow">Operação</span><h2>{screen?.title}</h2><p>{workspaceDescriptions[screenId]??'Gerencie os registros desta área.'}</p></div>
       </div>
-      <div className="actions">{Object.entries(screen?.actionDefinitions??{}).map(([name,definition])=><button key={name} data-testid={`action-${screenId}-${name}`} onClick={()=>onAction(name)}>{definition.label??name}</button>)}</div>
+      <div className="actions">{Object.entries(screen?.actionDefinitions??{}).filter(([name])=>!allowedActions||allowedActions.includes(name)).map(([name,definition])=><button key={name} data-testid={`action-${screenId}-${name}`} onClick={()=>onAction(name)}>{definition.label??name}</button>)}</div>
     </div>
     <DataTable records={records}/>
   </section>;

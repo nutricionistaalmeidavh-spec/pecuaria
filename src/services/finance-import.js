@@ -1,6 +1,6 @@
-import {createHash} from 'node:crypto';
+import {sha256Hex} from './sha256.js';
 
-const sha=value=>createHash('sha256').update(String(value)).digest('hex');
+const sha=value=>sha256Hex(String(value));
 const cleanText=value=>String(value??'').replace(/^\uFEFF/,'').replace(/\r\n?/g,'\n').trim();
 const iso=(value,label)=>{const time=Date.parse(value);if(!Number.isFinite(time))throw new TypeError(`${label} must be a valid date.`);return new Date(time).toISOString()};
 const requiredText=(value,label)=>{const text=String(value??'').trim();if(!text)throw new TypeError(`${label} is required.`);return text};

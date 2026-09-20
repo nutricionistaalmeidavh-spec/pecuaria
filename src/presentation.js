@@ -17,6 +17,7 @@ import {createCattleReportingService} from './services/reporting.js';
 import {createCattleDashboardService} from './services/dashboard.js';
 import {createSellAnimalsUseCase} from './use-cases/sell-animals.js';
 import {createIoTService} from './iot/service.js';
+import {createP1Repositories,createTraceabilityRecord,createInventoryItem,createPasture,createNutritionPlan,createManagementTask} from './p1.js';
 
 const rows=records=>records.map(record=>record.payload);
 const required=(record,label)=>{if(!record)throw new Error(`${label} not found.`);return record};
@@ -24,6 +25,7 @@ const required=(record,label)=>{if(!record)throw new Error(`${label} not found.`
 export function createCattlePresentation({persistence,localRuntime=null,recovery=null,capabilities=[],audit:providedAudit=null,iot:providedIoT=null,iotRuntime=null}={}){
   if(!persistence?.putRecord)throw new TypeError('Persistence adapter is required.');
   const repos=createCattleRepositories(persistence);
+  const p1=createP1Repositories(persistence);
   const invariants=createCattleInvariantService({repos});
   const finance=createEntityRepository(persistence,{collection:'cattle.finance'});
   const documents=createDocumentService(persistence);
@@ -69,6 +71,11 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
         return documents.issue({id,type,format,content});
       })
     }},
+    traceability:{kind:'traceability',load:async()=>({rows:await p1.traceability.list()}),actions:{save:audited('cattle.traceability.save','traceability',async input=>{await invariants.assertAnimalExists(input.animalId);return p1.traceability.save(createTraceabilityRecord(input),{expectedVersion:0});}),remove:audited('cattle.traceability.remove','traceability',({id,expectedVersion})=>p1.traceability.remove(id,{expectedVersion}))}},
+    inventory:{kind:'inventory',load:async()=>({rows:await p1.inventory.list()}),actions:{save:audited('cattle.inventory.save','inventory',input=>p1.inventory.save(createInventoryItem(input),{expectedVersion:0})),adjust:audited('cattle.inventory.adjust','inventory',async({id,delta})=>{const current=required(await p1.inventory.get(id),'Inventory item');const next={...current.payload,quantity:Math.max(0,Number(current.payload.quantity)+Number(delta))};return p1.inventory.save(next,{expectedVersion:current.version});})}},
+    pastures:{kind:'pastures',load:async()=>({rows:await p1.pastures.list()}),actions:{save:audited('cattle.pasture.save','pasture',input=>p1.pastures.save(createPasture(input),{expectedVersion:0}))}},
+    nutrition:{kind:'nutrition',load:async()=>({rows:await p1.nutrition.list()}),actions:{save:audited('cattle.nutrition.save','nutrition',async input=>{await invariants.assertLotExists(input.lotId);return p1.nutrition.save(createNutritionPlan(input),{expectedVersion:0});})}},
+    tasks:{kind:'management-tasks',load:async()=>({rows:await p1.tasks.list()}),actions:{save:audited('cattle.task.save','task',input=>p1.tasks.save(createManagementTask(input),{expectedVersion:0})),complete:audited('cattle.task.complete','task',async({id})=>{const current=required(await p1.tasks.get(id),'Task');return p1.tasks.save({...current.payload,status:'completed',completedAt:new Date().toISOString()},{expectedVersion:current.version});})}},
     data:{kind:'data-tools',async load(){const [farms,breeds,categories]=await Promise.all([repos.farmUnits.list(),repos.breeds.list(),repos.categories.list()]);return{rows:[...farms,...breeds,...categories]};},actions:{
       saveFarmUnit:audited('cattle.farm-unit.save','farm-unit',(input,options)=>repos.farmUnits.save(createFarmUnit(input),options??{})),
       saveBreed:audited('cattle.breed.save','breed',(input,options)=>repos.breeds.save(createCattleBreed(input),options??{})),

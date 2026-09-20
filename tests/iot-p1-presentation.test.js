@@ -10,9 +10,9 @@ test('P1 exposes Dispositivos e IoT in product navigation',()=>{
   assert.equal(item?.label,'Dispositivos e IoT');
 });
 
-test('IoT permissions are read-only for manager and write-capable for admin',()=>{
+test('IoT permissions allow operational manager and admin writes',()=>{
   assert.equal(SECURITY_POLICY.manager.includes('iot:read'),true);
-  assert.equal(SECURITY_POLICY.manager.includes('iot:write'),false);
+  assert.equal(SECURITY_POLICY.manager.includes('iot:write'),true);
   assert.deepEqual(PRESENTATION_ACCESS.screens.iot,{read:'iot:read',write:'iot:write'});
   assert.deepEqual(SECURITY_POLICY.admin,['*']);
 });

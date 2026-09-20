@@ -4,8 +4,8 @@ import {createCattleShellModel} from './ui.js';
 import {createCattleRepositories} from './catalog.js';
 import {createCattleInvariantService} from './invariants.js';
 import {createCattleTrade,recordWeight,recordMilkProduction,recordReproductionEvent} from './index.js';
-import {createCattleBreed,createCattleCategory} from './catalog.js';
-import {moveAnimal,recordAnimalLifecycle,recordSanitaryEvent} from './operations.js';
+import {createCattleBreed,createCattleCategory,createFarmUnit} from './catalog.js';
+import {moveAnimal,recordAnimalLifecycle,recordSanitaryEvent,cattleWeightGain} from './operations.js';
 import {createCattleTradeEntry,createCattleCost,cattleFinancialMetrics} from './finance.js';
 import {createDocumentService} from './documents.js';
 import {createSecurityService} from './security.js';
@@ -48,7 +48,10 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
   const screens={
     overview:{kind:'livestock-dashboard',async load(){const snapshot=await dashboard.snapshot();return{cards:snapshot.kpis,primaryKpis:snapshot.primaryKpis,alerts:snapshot.alerts,performance:snapshot.performance,reproduction:snapshot.reproduction,sanitary:snapshot.sanitary,lotDistribution:snapshot.lotDistribution,finance:snapshot.finance,recentActivity:snapshot.recentActivity,layout:snapshot.layout};}},
     lots:{kind:'lot-board',load:async()=>({rows:await repos.lots.list()}),actions:{save:audited('cattle.lot.save','lot',(entity,options)=>repos.lots.save(entity,options??{})),remove:audited('cattle.lot.remove','lot',({id,expectedVersion})=>repos.lots.remove(id,{expectedVersion}))}},
-    animals:{kind:'animal-register',load:async()=>({rows:await repos.animals.list()}),actions:{save:audited('cattle.animal.save','animal',(entity,options)=>repos.animals.save(entity,options??{})),recordMilk:audited('cattle.milk.record','animal',({id,...input})=>mutateAnimal(id,recordMilkProduction,input)),move:audited('cattle.animal.move','animal',async({id,...input})=>{await invariants.assertLotExists(input.toLotId);return mutateAnimal(id,moveAnimal,input);}),lifecycle:audited('cattle.animal.lifecycle','animal',({id,...input})=>mutateAnimal(id,recordAnimalLifecycle,input))}},
+    animals:{kind:'animal-register',load:async()=>({rows:(await repos.animals.list()).map(record=>{const gain=cattleWeightGain(record.payload);return{...record,payload:{...record.payload,latestWeightKg:record.payload.weights?.at(-1)?.weightKg??null,dailyGainKg:gain?.dailyGainKg??null,totalGainKg:gain?.gainKg??null}}})}),actions:{save:audited('cattle.animal.save','animal',(entity,options)=>repos.animals.save(entity,options??{})),recordMilk:audited('cattle.milk.record','animal',({id,...input})=>mutateAnimal(id,recordMilkProduction,input)),move:audited('cattle.animal.move','animal',async({id,...input})=>{await invariants.assertLotExists(input.toLotId);return mutateAnimal(id,moveAnimal,input);}),lifecycle:audited('cattle.animal.lifecycle','animal',({id,...input})=>mutateAnimal(id,recordAnimalLifecycle,input)),
+      batchMove:audited('cattle.animal.batch-move','animal',async({animalIds,toLotId,movedAt,reason})=>{await invariants.assertLotExists(toLotId);const results=[];for(const id of animalIds){results.push(await mutateAnimal(id,moveAnimal,{toLotId,movedAt,reason}));}return results;}),
+      batchLifecycle:audited('cattle.animal.batch-lifecycle','animal',async({animalIds,type,occurredAt,reason})=>{const results=[];for(const id of animalIds){results.push(await mutateAnimal(id,recordAnimalLifecycle,{type,occurredAt,reason}));}return results;})
+    }},
     weights:{kind:'weight-history',load:async()=>({rows:await repos.animals.list()}),actions:{record:audited('cattle.weight.record','animal',({id,...input})=>mutateAnimal(id,recordWeight,input))}},
     sanitary:{kind:'sanitary-workspace',async load(){const[protocols,events]=await Promise.all([repos.sanitaryProtocols.list(),repos.events.list()]);return{protocols,events:events.filter(record=>record.payload.kind==='sanitary')}} ,actions:{saveProtocol:audited('cattle.sanitary.protocol.save','sanitary-protocol',(entity,options)=>repos.sanitaryProtocols.save(entity,options??{})),record:audited('cattle.sanitary.record','sanitary-event',async input=>{await invariants.assertAnimalExists(input?.animalId);if(input?.protocolId)await invariants.assertProtocolExists(input.protocolId);const event=recordSanitaryEvent(input);return repos.events.save({...event,kind:'sanitary'},{expectedVersion:0});})}},
     reproduction:{kind:'reproduction-timeline',async load(){const events=await repos.events.list();return{rows:events.filter(record=>record.payload.kind==='reproduction')}} ,actions:{record:audited('cattle.reproduction.record','reproduction-event',async input=>{await invariants.assertAnimalExists(input?.animalId);if(input?.relatedAnimalId)await invariants.assertAnimalExists(input.relatedAnimalId);const event=recordReproductionEvent(input);return repos.events.save({...event,kind:'reproduction'},{expectedVersion:0});})}},
@@ -62,7 +65,8 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
         return documents.issue({id,type,format,content});
       })
     }},
-    data:{kind:'data-tools',async load(){const [breeds,categories]=await Promise.all([repos.breeds.list(),repos.categories.list()]);return{rows:[...breeds,...categories]};},actions:{
+    data:{kind:'data-tools',async load(){const [farms,breeds,categories]=await Promise.all([repos.farmUnits.list(),repos.breeds.list(),repos.categories.list()]);return{rows:[...farms,...breeds,...categories]};},actions:{
+      saveFarmUnit:audited('cattle.farm-unit.save','farm-unit',(input,options)=>repos.farmUnits.save(createFarmUnit(input),options??{})),
       saveBreed:audited('cattle.breed.save','breed',(input,options)=>repos.breeds.save(createCattleBreed(input),options??{})),
       saveCategory:audited('cattle.category.save','category',(input,options)=>repos.categories.save(createCattleCategory(input),options??{})),
       exportCollection:({collection})=>transfer.exportCollection(collection),

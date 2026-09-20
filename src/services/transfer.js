@@ -2,6 +2,7 @@ const FORMAT='artisys-pecuaria-export';
 const VERSION=1;
 const PRODUCT='agro-pecuaria';
 export const TRANSFERABLE_COLLECTIONS=Object.freeze([
+  'cattle.farm-units',
   'cattle.lots',
   'cattle.animals',
   'cattle.breeds',

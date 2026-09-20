@@ -4,7 +4,7 @@ import {createTraceabilityRecord,createInventoryItem,createPasture,createNutriti
 import {ACTION_FORMS} from '../web/action-config.js';
 
 test('P1 market depth exposes domain collections and UI workflows',()=>{
-  assert.equal(P1_COLLECTIONS.length,5);
+  assert.equal(P1_COLLECTIONS.length,7);
   for(const screen of ['traceability','inventory','pastures','nutrition','tasks'])assert.ok(ACTION_FORMS[screen]);
 });
 

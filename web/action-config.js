@@ -50,7 +50,7 @@ export const ACTION_FORMS=Object.freeze({
     saveBreed:form('Cadastrar raça',[field('id','ID'),field('name','Nome'),field('species','Espécie')],v=>({id:clean(v.id),name:clean(v.name),species:clean(v.species)||'bovine'})),
     saveCategory:form('Cadastrar categoria',[field('id','ID'),field('name','Nome'),field('purpose','Finalidade','select',{options:[['beef','Corte'],['dairy','Leite'],['breeding','Reprodução']]})],v=>({id:clean(v.id),name:clean(v.name),purpose:v.purpose})),
     exportCollection:form('Exportar dados',[field('collection','Coleção','select',{options:[['cattle.farm-units','Fazendas / unidades'],['cattle.lots','Lotes'],['cattle.animals','Animais'],['cattle.breeds','Raças'],['cattle.categories','Categorias'],['cattle.sanitary-protocols','Protocolos sanitários'],['cattle.events','Eventos'],['cattle.trades','Compras e vendas'],['cattle.finance','Financeiro']]})],v=>({collection:v.collection})),
-    validateImport:form('Validar importação JSON',[field('document','Documento JSON','textarea')],v=>({document:JSON.parse(v.document)})),
+    validateImport:form('Validar importação JSON',[field('document','Documento JSON','textarea',{acceptFile:'.json'})],v=>({document:JSON.parse(v.document)})),
     importCollection:form('Importar JSON validado',[field('document','Documento JSON','textarea')],v=>({document:JSON.parse(v.document)}))
   }),
   iot:Object.freeze({

@@ -1,0 +1,49 @@
+import {createHash} from 'node:crypto';
+
+const sha=value=>createHash('sha256').update(String(value)).digest('hex');
+const cleanText=value=>String(value??'').replace(/^\uFEFF/,'').replace(/\r\n?/g,'\n').trim();
+const iso=(value,label)=>{const time=Date.parse(value);if(!Number.isFinite(time))throw new TypeError(`${label} must be a valid date.`);return new Date(time).toISOString()};
+const requiredText=(value,label)=>{const text=String(value??'').trim();if(!text)throw new TypeError(`${label} is required.`);return text};
+
+function csvLine(line,delimiter){
+  const cells=[];let value='',quoted=false;
+  for(let index=0;index<line.length;index+=1){const char=line[index];if(char==='"'){if(quoted&&line[index+1]==='"'){value+='"';index+=1;}else quoted=!quoted;continue;}if(char===delimiter&&!quoted){cells.push(value.trim());value='';continue;}value+=char;}
+  if(quoted)throw new Error('Malformed CSV quoted field.');cells.push(value.trim());return cells;
+}
+
+function parseMoneyMinor(raw){
+  let value=String(raw??'').trim().replace(/\s/g,'').replace(/^R\$/i,'');
+  if(!value)throw new TypeError('Statement amount is required.');
+  const negative=value.startsWith('-');value=value.replace(/^[+-]/,'');
+  if(!/^[0-9.,]+$/.test(value))throw new TypeError('Statement amount must be valid money.');
+  const comma=value.lastIndexOf(','),dot=value.lastIndexOf('.');let decimal='';
+  if(comma>=0&&dot>=0)decimal=comma>dot?',':'.';else if(comma>=0)decimal=',';else if(dot>=0)decimal='.';
+  let normalized;
+  if(decimal){const parts=value.split(decimal);if(parts.length>2)throw new TypeError('Statement amount must be valid money.');const fractional=parts[1]??'';if(fractional.length>2&&!(comma>=0&&dot>=0))normalized=value.replace(/[.,]/g,'');else{const integer=parts[0].replace(/[.,]/g,'');if(!integer||!/^[0-9]+$/.test(integer)||!/^[0-9]{0,2}$/.test(fractional))throw new TypeError('Statement amount must be valid money.');normalized=`${integer}.${fractional.padEnd(2,'0')}`;}}else normalized=value;
+  const number=Number(normalized);if(!Number.isFinite(number))throw new TypeError('Statement amount must be valid money.');const minor=Math.round(number*100)*(negative?-1:1);if(!Number.isSafeInteger(minor))throw new TypeError('Statement amount is outside supported range.');return minor;
+}
+
+export function parseStatementCsv(text,{sourceName='statement.csv'}={}){
+  const normalized=cleanText(text);if(!normalized)throw new TypeError('Statement CSV is empty.');
+  const lines=normalized.split('\n').filter(line=>line.trim());const delimiter=lines[0].includes(';')?';':',';
+  const header=csvLine(lines[0],delimiter).map(value=>value.trim().toLowerCase());
+  for(const key of ['date','description','amount'])if(!header.includes(key))throw new Error(`Statement CSV missing required column: ${key}.`);
+  const indexes=Object.fromEntries(['date','description','amount'].map(key=>[key,header.indexOf(key)]));
+  const source=requiredText(sourceName,'Statement source name'),fileId=`statement-${sha(`${source}\n${normalized}`)}`;
+  const rows=[];
+  for(let lineIndex=1;lineIndex<lines.length;lineIndex+=1){const cells=csvLine(lines[lineIndex],delimiter);if(cells.every(cell=>!cell))continue;const occurredAt=iso(cells[indexes.date],'Statement date'),description=requiredText(cells[indexes.description],'Statement description'),amountMinor=parseMoneyMinor(cells[indexes.amount]),normalizedRow=`${occurredAt}|${description}|${amountMinor}`;rows.push(Object.freeze({id:`statement-row-${sha(`${fileId}\n${lineIndex}\n${normalizedRow}`)}`,occurredAt,description,amountMinor}));}
+  return Object.freeze({fileId,sourceName:source,rows:Object.freeze(rows)});
+}
+
+const decodeXml=value=>String(value??'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").trim();
+function xmlTag(xml,name){const pattern=new RegExp(`<(?:(?:[A-Za-z_][\\w.-]*):)?${name}\\b[^>]*>([\\s\\S]*?)<\\/(?:(?:[A-Za-z_][\\w.-]*):)?${name}>`,'i');const match=xml.match(pattern);return match?decodeXml(match[1].replace(/<[^>]+>/g,'')):null;}
+function xmlMoney(value){if(value==null)throw new Error('NF-e total vNF is required.');if(!/^\d+(?:\.\d{1,2})?$/.test(value))throw new Error('NF-e total vNF must be valid money.');const minor=Math.round(Number(value)*100);if(!Number.isSafeInteger(minor)||minor<=0)throw new Error('NF-e total vNF must be positive.');return minor;}
+
+export function parseInvoiceXml(xml,{sourceName='invoice.xml'}={}){
+  const normalized=cleanText(xml);if(!normalized)throw new TypeError('Invoice XML is empty.');
+  if(/<!DOCTYPE|<!ENTITY/i.test(normalized))throw new Error('Unsafe XML DOCTYPE/ENTITY declarations are not allowed.');
+  if(!/<(?:(?:[A-Za-z_][\w.-]*):)?NFe\b/i.test(normalized))throw new Error('Invalid NF-e XML document.');
+  const source=requiredText(sourceName,'Invoice source name'),documentNumber=requiredText(xmlTag(normalized,'nNF'),'NF-e document number'),issuedRaw=xmlTag(normalized,'dhEmi')??xmlTag(normalized,'dEmi'),issuedAt=iso(requiredText(issuedRaw,'NF-e issue date'),'NF-e issue date'),totalAmountMinor=xmlMoney(xmlTag(normalized,'vNF')),partyDocument=xmlTag(normalized,'CNPJ')??xmlTag(normalized,'CPF'),partyName=xmlTag(normalized,'xNome'),fileId=`invoice-${sha(`${source}\n${normalized}`)}`;
+  const suggestion=Object.freeze({direction:'payable',description:`NF-e ${documentNumber}${partyName?` - ${partyName}`:''}`,originalAmountMinor:totalAmountMinor,issuedAt,dueAt:issuedAt,documentRef:documentNumber,partyDocument:partyDocument??null,partyName:partyName??null});
+  return Object.freeze({fileId,sourceName:source,documentNumber,issuedAt,totalAmountMinor,partyDocument:partyDocument??null,partyName:partyName??null,suggestion});
+}

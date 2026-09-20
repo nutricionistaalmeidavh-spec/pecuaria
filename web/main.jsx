@@ -6,9 +6,10 @@ import {createRpcBackend} from '../runtime/backend.mjs';
 import {getActionForm} from './action-config.js';
 import {ActionDialog,AnimalDetail,CorralFlow,DataTable,DesktopShell,StatusBanner,WorkspaceScreen,FinanceMetrics,ReproductionSummary} from './components.jsx';
 import {OverviewDashboard} from './dashboard.jsx';
-import {ActionResultPanel,PastureDecisionPanel,ReproductionDecisionPanel,SanitaryAnalyticsPanel,ProductiveIntelligencePanel,FinanceDecisionPanel,CommercialSummaryPanel,FieldModePanel,CommercialSimulator,AdvancedReportsPanel,IoTDetailsPanel} from './depth-components.jsx';
+import {ActionResultPanel,PastureDecisionPanel,ReproductionDecisionPanel,SanitaryAnalyticsPanel,ProductiveIntelligencePanel,FinanceDecisionPanel,CommercialSummaryPanel,CommercialSimulator,AdvancedReportsPanel,IoTDetailsPanel} from './depth-components.jsx';
 import {SanitaryApplicationsPanel} from './depth-operations.jsx';
 import {ProfessionalReproductionPanel,UserAdministrationPanel} from './pro-management.jsx';
+import {FieldMobileWorkspace} from './field-mobile.jsx';
 import {Icon} from './icons.jsx';
 import './styles.css';
 
@@ -86,6 +87,7 @@ function App(){
   const [simulationResult,setSimulationResult]=useState(null);
   const [reproductionAdminState,setReproductionAdminState]=useState(null);
   const [userAdminState,setUserAdminState]=useState(null);
+  const [fieldSyncState,setFieldSyncState]=useState(null);
   const updates=globalThis.artisys?.updates??null;
 
   useEffect(()=>{getBackend().then(async value=>{setBackend(value);setHasUsers((await value.authState()).hasUsers)}).catch(error=>setNotice({tone:'error',text:error.message}))},[]);
@@ -117,6 +119,11 @@ function App(){
     if(!backend||!auth||screenId!=='settings'){setUserAdminState(null);return;}
     let active=true;backend.userAdmin({auth,operation:'state'}).then(value=>{if(active)setUserAdminState(value)}).catch(()=>{if(active)setUserAdminState(null)});return()=>{active=false};
   },[backend,auth,screenId]);
+
+  useEffect(()=>{
+    if(!backend||!auth||screenId!=='tasks'){setFieldSyncState(null);return;}
+    let active=true;backend.fieldSync({auth,operation:'state'}).then(value=>{if(active)setFieldSyncState(value)}).catch(error=>{if(active)setNotice({tone:'error',text:error.message})});return()=>{active=false};
+  },[backend,auth,screenId,data]);
 
   async function login(event){
     event.preventDefault();setNotice(null);
@@ -166,6 +173,7 @@ function App(){
   const runAction=async(id,name,input)=>backend.action({screenId:id,action:name,input,auth,context:{}});
   const runReproductionAdmin=async(operation,input)=>{try{await backend.reproductionAdmin({auth,operation,input});setReproductionAdminState(await backend.reproductionAdmin({auth,operation:'state'}));if(operation==='recordService')await load('reproduction');setNotice({tone:'success',text:'Gestão reprodutiva atualizada.'})}catch(error){setNotice({tone:'error',text:error.message});throw error}};
   const runUserAdmin=async(operation,input)=>{try{await backend.userAdmin({auth,operation,input});setUserAdminState(await backend.userAdmin({auth,operation:'state'}));setNotice({tone:'success',text:'Administração de usuários atualizada.'})}catch(error){setNotice({tone:'error',text:error.message});throw error}};
+  const runFieldSync=async(operation,input={})=>{try{const result=await backend.fieldSync({auth,operation,input});const nextState=result?.state??(operation==='state'?result:await backend.fieldSync({auth,operation:'state'}));setFieldSyncState(nextState);if(operation==='quick'||operation==='importBundle'){await load('tasks');backend.references({auth}).then(setReferences).catch(()=>{})}if(operation==='quick')setNotice({tone:'success',text:nextState?.pending?`Manejo salvo localmente. ${nextState.pending} operação(ões) aguardando sincronização.`:'Manejo salvo localmente.'});if(operation==='importBundle')setNotice({tone:'success',text:`Pacote local importado: ${result.operations?.applied??0} operação(ões) aplicada(s).`});if(operation==='configure')setNotice({tone:'success',text:'Sincronização local configurada.'});return result}catch(error){setNotice({tone:'error',text:error.message});throw error}};
   const navigation=<>{meta.navigation.map(item=><button key={item.id} data-testid={`nav-${item.id}`} className={`nav-item ${item.id===screenId?'on':''}`} onClick={()=>navigate(item.id)}><Icon name={item.icon} size={19}/><span>{item.label}</span></button>)}</>;
   const brand=<div className="brand-lockup"><span className="brand-mark"><Icon name="beef" size={26}/></span><span><strong>{meta.brand.productName??meta.brand.name??'ArtiSys Pecuária'}</strong><small>Pecuária</small></span></div>;
   const secondaryRecords=screenId==='inventory'?data?.movements:screenId==='pastures'?data?.occupancy:screenId==='sanitary'?data?.protocols:null;
@@ -175,7 +183,7 @@ function App(){
   return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Dashboard'} notificationCount={screenId==='overview'?(data?.alerts?.length??0):0}
     onSearch={async term=>{try{setSearchResults(await backend.search({term,auth}));setAlertResults(null)}catch(error){setNotice({tone:'error',text:error.message})}}}
     onNotifications={async()=>{try{setAlertResults(await backend.alerts({auth}));setSearchResults(null)}catch(error){setNotice({tone:'error',text:error.message})}}}
-    onLogout={async()=>{try{await backend.logout(auth)}catch{}finally{setAuth(null);setMeta(null);setScreenId(null);setData(null);setReferences({});setActionResult(null);setAuditResults(null);setDepthInsights(null);setSimulationResult(null);setReproductionAdminState(null);setUserAdminState(null)}}}>
+    onLogout={async()=>{try{await backend.logout(auth)}catch{}finally{setAuth(null);setMeta(null);setScreenId(null);setData(null);setReferences({});setActionResult(null);setAuditResults(null);setDepthInsights(null);setSimulationResult(null);setReproductionAdminState(null);setUserAdminState(null);setFieldSyncState(null)}}}>
     {notice&&<StatusBanner tone={notice.tone}>{notice.text}</StatusBanner>}
     {actionResult&&<ActionResultPanel result={actionResult} onClose={()=>setActionResult(null)}/>} 
     {searchResults&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Busca global</span><h2>Resultados</h2><p>{searchResults.length} registro(s) encontrado(s).</p></div><button className="ghost" onClick={()=>setSearchResults(null)}>Fechar</button></div><DataTable records={searchResults}/><div className="actions">{searchResults.map((r,i)=><button data-testid={`search-open-${i}`} key={r.id??i} onClick={()=>{openEntity(r);setSearchResults(null)}}>Abrir registro</button>)}</div></section>}
@@ -198,11 +206,11 @@ function App(){
       {screenId==='trades'&&<CommercialSummaryPanel insights={depthInsights}/>} 
       {screenId==='trades'&&<CommercialSimulator lots={references.lots??[]} result={simulationResult} onSimulate={async input=>{try{setSimulationResult(await backend.simulateSale({auth,...input}))}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
       {screenId==='reports'&&<AdvancedReportsPanel lots={references.lots??[]} onGenerate={async({format,...input})=>{try{const result=await backend.action({screenId:'reports',action:format,input,auth,context:{}});surfaceResult(result,{screen:'reports',name:format})}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
-      {screenId==='tasks'&&<FieldModePanel tasks={rows} onComplete={async id=>{try{await runAction('tasks','complete',{id});await load('tasks');setNotice({tone:'success',text:'Manejo concluído e salvo localmente.'})}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
+      {screenId==='tasks'&&<FieldMobileWorkspace tasks={rows} animals={references.animals??[]} lots={references.lots??[]} protocols={references.protocols??[]} syncState={fieldSyncState} onSync={runFieldSync}/>} 
       {screenId==='iot'&&<IoTDetailsPanel data={data}/>} 
       {screenId==='weights'&&<CorralFlow animals={references.animals??[]} onRecord={async input=>{await runAction('weights','record',input);await load('weights');backend.references({auth}).then(setReferences)}}/>}
       {screenId==='animals'&&animalDetail&&<AnimalDetail detail={animalDetail} onClose={()=>setAnimalDetail(null)}/>} 
-      <WorkspaceScreen screenId={screenId} screen={screen} icon={screenNavigation?.icon} records={rows} secondaryRecords={secondaryRecords} secondaryTitle={secondaryTitle} allowedActions={meta?.access?.[screenId]?.actions??[]} onAction={async name=>{if(screenId==='animals'&&name==='view360')return;setAction(name);setNotice(null)}}/>
+      <div className={screenId==='tasks'?'field-desktop-only':undefined}><WorkspaceScreen screenId={screenId} screen={screen} icon={screenNavigation?.icon} records={rows} secondaryRecords={secondaryRecords} secondaryTitle={secondaryTitle} allowedActions={meta?.access?.[screenId]?.actions??[]} onAction={async name=>{if(screenId==='animals'&&name==='view360')return;setAction(name);setNotice(null)}}/></div>
       {screenId==='animals'&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Ficha individual</span><h2>Abrir animal 360º</h2></div></div><div className="form-grid"><label><span>Animal</span><select defaultValue="" onChange={async e=>{if(!e.target.value)return;const detailData=await backend.load({screenId:'animals',auth,context:{animalId:e.target.value}});setAnimalDetail(detailData.detail)}}><option value="">Selecione</option>{(references.animals??[]).map(a=><option key={a.id} value={a.id}>{a.tag??a.name??a.id}</option>)}</select></label></div></section>}
     </>}
     <ActionDialog open={Boolean(action)} definition={activeForm} references={references} busy={busy} onClose={()=>setAction(null)} onSubmit={async input=>{setBusy(true);setNotice(null);try{const actionName=action,result=await backend.action({screenId,action:actionName,input,auth,context:{}});surfaceResult(result,{screen:screenId,name:actionName});setAction(null);setNotice({tone:'success',text:'Operação concluída com sucesso.'});await load();backend.references({auth}).then(setReferences).catch(()=>{})}catch(error){setNotice({tone:'error',text:error.message})}finally{setBusy(false)}}}/>

@@ -1,0 +1,10 @@
+{
+  "name": "ArtiSys Pecuária - Campo",
+  "short_name": "ArtiSys Campo",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7f4",
+  "theme_color": "#315a3e",
+  "description": "Manejo pecuário local-first para uso no campo sem internet."
+}

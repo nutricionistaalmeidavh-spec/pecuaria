@@ -42,3 +42,16 @@ test('normal UI source does not expose the raw JSON action editor',async()=>{
   assert.ok(!main.includes('action-json'));
   assert.ok(!main.includes('JSON.parse(raw)'));
 });
+
+
+test('P0 customer UI exposes additive operational workflows',()=>{
+  const keys=actionFormKeys();
+  for(const key of ['animals.recordMilk','animals.batchMove','animals.batchLifecycle','sanitary.batchRecord','reproduction.batchRecord','data.saveFarmUnit','data.saveBreed','data.saveCategory','data.exportCollection','data.validateImport','data.importCollection'])assert.ok(keys.includes(key),key);
+  assert.equal(ACTION_FORMS.weights.record.fields.find(f=>f.name==='id').refCollection,'animals');
+  assert.equal(ACTION_FORMS.sanitary.batchRecord.fields.find(f=>f.name==='animalIds').refCollection,'animals');
+});
+
+test('P0 source exposes animal 360 corral flow and file import',async()=>{
+  const [main,components]=await Promise.all([readFile(new URL('../web/main.jsx',import.meta.url),'utf8'),readFile(new URL('../web/components.jsx',import.meta.url),'utf8')]);
+  assert.match(main,/AnimalDetail/);assert.match(main,/CorralFlow/);assert.match(components,/animal-360/);assert.match(components,/corral-flow/);assert.match(components,/type="file"/);
+});

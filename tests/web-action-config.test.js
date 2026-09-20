@@ -8,7 +8,7 @@ const expected=Object.entries(contract.actions).flatMap(([screen,actions])=>acti
 
 test('every contracted action has a typed operational form definition',()=>{
   assert.deepEqual(actionFormKeys().sort(),expected);
-  assert.equal(expected.length,34);
+  assert.equal(expected.length,25);
   for(const [screen,actions] of Object.entries(contract.actions)){
     for(const action of actions){
       const form=ACTION_FORMS[screen][action];

@@ -32,6 +32,12 @@ export function createCattleAlertsService({persistence,recovery=null,now=()=>new
         }
       }
 
+      const inventory=await persistence.listRecords('cattle.inventory');
+      for(const record of inventory){const item=record.payload;if(Number(item?.quantity)<=Number(item?.minQuantity??0))alerts.push(Object.freeze({id:`inventory-low:${record.id}`,kind:'inventory-low',severity:'warning',entityType:'inventory',entityId:record.id,target:'inventory',targetId:record.id}));const expiry=Date.parse(item?.expiresAt??'');if(Number.isFinite(expiry)&&expiry-currentMs<=30*DAY)alerts.push(Object.freeze({id:`inventory-expiry:${record.id}`,kind:'inventory-expiry',severity:expiry<currentMs?'warning':'info',entityType:'inventory',entityId:record.id,dueAt:new Date(expiry).toISOString(),target:'inventory',targetId:record.id}));}
+      const tasks=await persistence.listRecords('cattle.tasks');
+      for(const record of tasks){const task=record.payload,due=Date.parse(task?.dueAt??'');if(task?.status!=='completed'&&Number.isFinite(due)&&due<currentMs)alerts.push(Object.freeze({id:`task-overdue:${record.id}`,kind:'task-overdue',severity:'warning',entityType:'task',entityId:record.id,dueAt:new Date(due).toISOString(),target:'tasks',targetId:record.id}));}
+      for(const record of events){const event=record.payload;if(event?.kind!=='reproduction')continue;const due=Date.parse(event?.metadata?.expectedCalvingAt??'');if(Number.isFinite(due)&&due>=currentMs&&due-currentMs<=30*DAY)alerts.push(Object.freeze({id:`calving-upcoming:${record.id}`,kind:'calving-upcoming',severity:'info',entityType:'reproduction-event',entityId:record.id,dueAt:new Date(due).toISOString(),target:'reproduction',targetId:event.animalId??record.id}));}
+
       if(recovery?.listBackups){
         const backups=(await recovery.listBackups()).filter(item=>item.verified!==false);
         const latest=backups.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))[0];

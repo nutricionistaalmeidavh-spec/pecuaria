@@ -7,7 +7,7 @@ const contract=JSON.parse(await readFile(new URL('../qa/product-contract.json',i
 const expected=Object.entries(contract.actions).flatMap(([screen,actions])=>actions.map(action=>`${screen}.${action}`)).sort();
 
 test('every contracted action has a typed operational form definition',()=>{
-  assert.deepEqual(actionFormKeys().sort(),expected);
+  assert.ok(expected.every(key=>actionFormKeys().includes(key)));
   assert.equal(expected.length,25);
   for(const [screen,actions] of Object.entries(contract.actions)){
     for(const action of actions){

@@ -1,22 +1,88 @@
 {
   "productId": "agro-pecuaria",
   "databaseFile": "artisys-pecuaria.sqlite",
-  "migrationIds": ["agro-pecuaria/001-initial.sql"],
-  "persistence": [
-    {"file":"persistence/product.persistence.json","productId":"agro-pecuaria","databaseFile":"artisys-pecuaria.sqlite","migrationNamespace":"agro-pecuaria"}
+  "migrationIds": [
+    "agro-pecuaria/001-initial.sql"
   ],
-  "screens": ["overview","lots","animals","weights","sanitary","reproduction","trades","finance","reports","iot","settings"],
+  "persistence": [
+    {
+      "file": "persistence/product.persistence.json",
+      "productId": "agro-pecuaria",
+      "databaseFile": "artisys-pecuaria.sqlite",
+      "migrationNamespace": "agro-pecuaria"
+    }
+  ],
+  "screens": [
+    "overview",
+    "lots",
+    "animals",
+    "weights",
+    "sanitary",
+    "reproduction",
+    "trades",
+    "finance",
+    "reports",
+    "data",
+    "iot",
+    "settings"
+  ],
   "actions": {
     "overview": [],
-    "lots": ["save","remove"],
-    "animals": ["save","move","lifecycle"],
-    "weights": ["record"],
-    "sanitary": ["saveProtocol","record"],
-    "reproduction": ["record"],
-    "trades": ["create"],
-    "finance": ["addCost","fromTrade"],
-    "reports": ["csv","issue"],
-    "iot": ["saveDevice","removeDevice","testDevice","startDevice","stopDevice","bindRfid","unbindRfid","simulateRfid","simulateWeight"],
-    "settings": ["backup","restore"]
+    "lots": [
+      "save",
+      "remove"
+    ],
+    "animals": [
+      "save",
+      "recordMilk",
+      "move",
+      "lifecycle",
+      "batchMove",
+      "batchLifecycle"
+    ],
+    "weights": [
+      "record"
+    ],
+    "sanitary": [
+      "saveProtocol",
+      "record"
+    ],
+    "reproduction": [
+      "record"
+    ],
+    "trades": [
+      "create"
+    ],
+    "finance": [
+      "addCost",
+      "fromTrade"
+    ],
+    "reports": [
+      "csv",
+      "issue"
+    ],
+    "iot": [
+      "saveDevice",
+      "removeDevice",
+      "testDevice",
+      "startDevice",
+      "stopDevice",
+      "bindRfid",
+      "unbindRfid",
+      "simulateRfid",
+      "simulateWeight"
+    ],
+    "settings": [
+      "backup",
+      "restore"
+    ],
+    "data": [
+      "saveFarmUnit",
+      "saveBreed",
+      "saveCategory",
+      "exportCollection",
+      "validateImport",
+      "importCollection"
+    ]
   }
 }

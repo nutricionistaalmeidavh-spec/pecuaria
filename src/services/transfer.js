@@ -10,7 +10,12 @@ export const TRANSFERABLE_COLLECTIONS=Object.freeze([
   'cattle.sanitary-protocols',
   'cattle.events',
   'cattle.trades',
-  'cattle.finance'
+  'cattle.finance',
+  'cattle.traceability',
+  'cattle.inventory',
+  'cattle.pastures',
+  'cattle.nutrition',
+  'cattle.tasks'
 ]);
 
 const requiredText=(value,label)=>{

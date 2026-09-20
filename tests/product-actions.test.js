@@ -172,3 +172,18 @@ test('manager cannot restore a backup even though manager can back up',async()=>
     await rm(dir,{recursive:true,force:true});
   }
 });
+
+
+test('P0 additive actions execute through authenticated presentation',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'pecuaria-p0-additive-'));let host;
+  try{host=await createStandaloneHost({dataDir:root});const auth=await authFor(host);const repos=createCattleRepositories(host.persistence);
+    await repos.lots.save(createCattleLot({id:'p0-l1',name:'P0',farmUnitId:'p0-f1'}),{expectedVersion:0});
+    await repos.animals.save(createAnimal({id:'p0-a1',tag:'P0-A1',farmUnitId:'p0-f1',lotId:'p0-l1'}),{expectedVersion:0});
+    await repos.animals.save(createAnimal({id:'p0-a2',tag:'P0-A2',farmUnitId:'p0-f1',lotId:'p0-l1'}),{expectedVersion:0});
+    const run=(s,a,input)=>host.backend.action({screenId:s,action:a,input,auth});
+    await run('sanitary','batchRecord',{animalIds:['p0-a1','p0-a2'],idPrefix:'vac',productItemId:'vacina',dose:2,unit:'ml',occurredAt:'2026-09-19T20:00:00Z'});
+    await run('reproduction','batchRecord',{animalIds:['p0-a1','p0-a2'],idPrefix:'rep',type:'pregnancy-check',occurredAt:'2026-09-19T20:10:00Z'});
+    const events=await repos.events.list();assert.equal(events.length,4);
+    const detail=await host.backend.load({screenId:'animals',auth,context:{animalId:'p0-a1'}});assert.equal(detail.detail.animal.id,'p0-a1');assert.ok(detail.detail.timeline.length>=2);
+  }finally{await host?.close();await rm(root,{recursive:true,force:true});}
+});

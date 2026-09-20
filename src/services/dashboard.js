@@ -1,3 +1,5 @@
+import {reproductionMetrics} from '../reproduction.js';
+
 const payloads=records=>(records??[]).map(record=>record?.payload??record);
 const finite=value=>Number.isFinite(Number(value));
 const average=values=>values.length?values.reduce((sum,value)=>sum+value,0)/values.length:null;
@@ -118,13 +120,8 @@ export function createCattleDashboardService({persistence,alerts}={}){
         lots:kpis.lots,
         alerts:alertList.length
       });
-      const reproduction=Object.freeze({
-        total:reproductionEvents.length,
-        services:reproductionEvents.filter(event=>event?.type==='service').length,
-        pregnancyChecks:reproductionEvents.filter(event=>event?.type==='pregnancy-check').length,
-        calvings:reproductionEvents.filter(event=>event?.type==='calving').length,
-        weanings:reproductionEvents.filter(event=>event?.type==='weaning').length
-      });
+      const eligibleFemaleIds=active.filter(animal=>animal?.sex==='female').map(animal=>animal.id);
+      const reproduction=Object.freeze(reproductionMetrics(reproductionEvents,{eligibleFemaleIds}));
       const sanitary=Object.freeze({totalEvents:sanitaryEvents.length,alerts:alertList.length});
       const lotDistribution=Object.freeze(lotRows.map(lot=>Object.freeze({
         id:lot.id,

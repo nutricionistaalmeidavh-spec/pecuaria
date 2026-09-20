@@ -9,6 +9,7 @@ on:
       - release/fully-automated-github
       - depth/pecuaria-decision
       - depth/finance-pasture-history
+      - depth/reproduction-admin
       - main
   workflow_dispatch:
 

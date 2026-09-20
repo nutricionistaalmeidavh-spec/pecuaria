@@ -13,7 +13,9 @@ export const TRANSFERABLE_COLLECTIONS=Object.freeze([
   'cattle.finance',
   'cattle.traceability',
   'cattle.inventory',
+  'cattle.inventory-movements',
   'cattle.pastures',
+  'cattle.pasture-occupancy',
   'cattle.nutrition',
   'cattle.tasks'
 ]);

@@ -55,11 +55,48 @@ O núcleo mantém:
 - relatórios CSV/PDF e emissão persistida;
 - resultado econômico por lote.
 
+## P0 de profundidade de mercado — concluído
+
+O P0 aprofunda módulos existentes sem ampliar o menu e sem introduzir dependência paga.
+
+### Economia de arroba e fechamento comercial
+
+- separação explícita entre **arroba de peso vivo** e **arroba de carcaça**;
+- cálculo de peso vivo, @ de peso vivo, peso de carcaça, rendimento de carcaça e @ de carcaça;
+- venda pode calcular o fechamento por preço/@ de carcaça;
+- valor bruto, descontos, frete, comissão e valor líquido ficam persistidos no fechamento;
+- a tela de Compras e Vendas expõe os dados de carcaça em vez de escondê-los em metadados;
+- o indicador econômico legado continua compatível, mas a interface identifica claramente `Custo/@ peso vivo`.
+
+### Sanidade integrada à operação
+
+- protocolo sanitário suporta intervalo, princípio ativo e carência;
+- aplicação resolve produto, dose, unidade, lote/partida e custo;
+- quando o insumo está cadastrado, a aplicação faz **baixa transacional de estoque**, registra movimento e apropria custo ao lote do animal;
+- estoque insuficiente rejeita a operação sem escrita parcial;
+- período de carência fica registrado no evento e aparece na central de alertas;
+- venda de animal com carência sanitária ativa é bloqueada antes de qualquer gravação;
+- registros antigos continuam aceitos quando ainda não existe item correspondente no estoque.
+
+### Reprodução com indicadores de manejo
+
+- eventos cobrem serviço, diagnóstico de gestação, perda gestacional, parto e desmame;
+- a tela de Reprodução deriva e exibe taxas de serviço, concepção, prenhez, perda gestacional, parto e desmame;
+- o dashboard preserva o resumo histórico existente e expõe os indicadores derivados separadamente, sem quebrar consumidores anteriores.
+
+### Contatos e partes comerciais
+
+- cliente, fornecedor, frigorífico e demais partes podem ser cadastrados como entidades locais de catálogo;
+- contatos suportam papéis, documento, telefone, e-mail e observações;
+- contatos participam da busca global e dos fluxos de exportação/importação;
+- negociações continuam usando `partyId`, agora com cadastro de parte correspondente disponível ao usuário.
+
 ## Alertas operacionais
 
 A central de alertas cobre atualmente:
 
 - manejo sanitário vencido ou próximo;
+- **carência sanitária ativa**;
 - animal ativo com pesagem desatualizada;
 - estoque abaixo do mínimo;
 - insumo próximo da validade ou vencido;
@@ -123,32 +160,15 @@ Como o produto ainda não possui base legada de cliente em produção, `npm run 
 
 O Woodpecker é opcional e manual. Não é requisito para QA, build, certificação ou publicação normal.
 
-## Profundidade funcional — estado conhecido
+## Profundidade funcional — próximos aprofundamentos
 
-A amplitude atual é alta, mas alguns domínios ainda precisam ser aprofundados antes de serem apresentados como equivalentes a soluções pecuárias especializadas.
+O P0 corrigiu as principais lacunas de domínio identificadas na comparação com o mercado. Os próximos ganhos de profundidade devem continuar dentro dos módulos existentes.
 
-### Pontos fortes atuais
-
-- cadastro e histórico individual;
-- ficha Animal 360º;
-- lotes e manejo coletivo;
-- pesagens e GMD;
-- alertas;
-- estoque;
-- nutrição integrada ao estoque;
-- rastreabilidade;
-- operação local-first;
-- auditoria, segurança, backup e QA;
-- IoT opcional.
-
-### Aprofundamentos prioritários
-
-1. **Economia de arroba:** o indicador atual baseado em peso vivo deve ser explicitamente separado de arroba de carcaça. Introduzir peso de carcaça, rendimento, @ de carcaça e fechamento de abate antes de tratar custo/@ como indicador comercial de abate.
-2. **Sanidade:** integrar aplicação sanitária ao consumo/baixa de estoque, custo, lote/partida do produto e carência.
-3. **Reprodução:** derivar indicadores como prenhez, concepção, serviço, desmame, intervalo entre partos, perdas e desempenho por reprodutor/protocolo.
-4. **Comercial/financeiro:** aprofundar cliente/fornecedor, preço/@, descontos, frete, comissão, valor líquido e resultado da negociação.
-5. **Pastagens:** aprofundar UA/ha, lotação realizada x capacidade, dias de ocupação/descanso e desempenho por área.
-6. **Campo/mobile:** criar operação offline de curral/campo sem tornar nuvem ou serviço pago uma dependência do core.
+1. **Pastagens:** UA/ha, lotação realizada x capacidade, dias de ocupação/descanso, pressão de pastejo e desempenho por área.
+2. **Campo/mobile:** operação offline de curral/campo, sincronizada localmente, sem tornar nuvem ou serviço pago uma dependência do core.
+3. **Inteligência produtiva:** projeção de peso, ranking de animais/lotes, kg/ha, @/ha e calendário de manejo mais analítico.
+4. **Reprodução avançada:** estação de monta, IATF completa, intervalo entre partos/dias em aberto e desempenho por reprodutor, sêmen e protocolo.
+5. **Comercial avançado:** simulador de venda e comparativos de cenários antes do fechamento real.
 
 ### Escopos especializados
 
@@ -160,4 +180,4 @@ A amplitude atual é alta, mas alguns domínios ainda precisam ser aprofundados 
 
 O **core obrigatório deve continuar R$ 0 de infraestrutura recorrente, local/self-hosted e baseado em componentes open source**. Serviços pagos, nuvem, APIs comerciais ou integrações externas podem existir apenas como opções explícitas e nunca como dependência silenciosa do funcionamento principal.
 
-**Estado:** P0/P1, IoT P0/P1, reporting/dashboard, updater e P2 de engenharia estão integrados. A próxima evolução deve priorizar profundidade dos módulos existentes em vez de ampliar o menu.
+**Estado:** P0 de profundidade de mercado concluído na branch de hardening; P0/P1 de produto, IoT P0/P1, reporting/dashboard, updater e P2 de engenharia permanecem integrados. A próxima evolução deve priorizar profundidade operacional e decisão, sem ampliar o menu por ampliar.

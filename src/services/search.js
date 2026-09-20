@@ -9,6 +9,12 @@ export const SEARCHABLE_COLLECTIONS=Object.freeze([
   'cattle.events',
   'cattle.trades',
   'cattle.finance',
+  'cattle.finance-accounts',
+  'cattle.finance-titles',
+  'cattle.finance-settlements',
+  'cattle.finance-categories',
+  'cattle.finance-reconciliations',
+  'cattle.finance-imports',
   'cattle.traceability',
   'cattle.inventory',
   'cattle.pastures',
@@ -17,7 +23,7 @@ export const SEARCHABLE_COLLECTIONS=Object.freeze([
 ]);
 
 const normalize=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-const labelFor=(payload,id)=>payload?.name??payload?.tag??payload?.description??payload?.title??payload?.id??id;
+const labelFor=(payload,id)=>payload?.name??payload?.tag??payload?.description??payload?.title??payload?.documentNumber??payload?.sourceName??payload?.id??id;
 
 export function createLocalSearchService(persistence,{collections=SEARCHABLE_COLLECTIONS}={}){
   const allowed=new Set(collections);

@@ -36,8 +36,13 @@ test('search routes every persisted product domain to a usable workspace',async(
 });
 
 test('existing modules expose pasture, reproduction, sanitary, field, reporting, intelligence and commercial-finance depth',async()=>{
-  const [main,depth]=await Promise.all([source('../web/main.jsx'),source('../web/depth-components.jsx')]);
-  for(const id of ['pasture-decision','reproduction-decision','sanitary-analytics','field-mode','advanced-reports','productive-intelligence','commercial-simulator','finance-decision','commercial-summary','iot-details','audit-panel'])assert.match(`${main}\n${depth}`,new RegExp(`data-testid=["']${id}["']`),`${id} must be visible in UI`);
+  const [main,depth,operations]=await Promise.all([source('../web/main.jsx'),source('../web/depth-components.jsx'),source('../web/depth-operations.jsx')]);
+  const combined=`${main}\n${depth}\n${operations}`;
+  for(const id of ['pasture-decision','reproduction-decision','sanitary-analytics','field-mode','advanced-reports','productive-intelligence','commercial-simulator','finance-decision','commercial-summary','iot-details','audit-panel','advanced-reproduction-capture','sanitary-applications-detail'])assert.match(combined,new RegExp(`data-testid=["']${id}["']`),`${id} must be visible in UI`);
+  assert.match(operations,/breedingSeason/);
+  assert.match(operations,/protocol/);
+  assert.match(operations,/withdrawalUntil/);
+  assert.match(operations,/productBatch/);
 });
 
 test('advanced document definitions are available to the existing PDF/CSV actions',async()=>{

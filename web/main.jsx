@@ -7,6 +7,7 @@ import {getActionForm} from './action-config.js';
 import {ActionDialog,AnimalDetail,CorralFlow,DataTable,DesktopShell,StatusBanner,WorkspaceScreen,FinanceMetrics,ReproductionSummary} from './components.jsx';
 import {OverviewDashboard} from './dashboard.jsx';
 import {ActionResultPanel,PastureDecisionPanel,ReproductionDecisionPanel,SanitaryAnalyticsPanel,ProductiveIntelligencePanel,FinanceDecisionPanel,CommercialSummaryPanel,FieldModePanel,CommercialSimulator,AdvancedReportsPanel,IoTDetailsPanel} from './depth-components.jsx';
+import {AdvancedReproductionCapture,SanitaryApplicationsPanel} from './depth-operations.jsx';
 import {Icon} from './icons.jsx';
 import './styles.css';
 
@@ -154,6 +155,7 @@ function App(){
   const brand=<div className="brand-lockup"><span className="brand-mark"><Icon name="beef" size={26}/></span><span><strong>{meta.brand.productName??meta.brand.name??'ArtiSys Pecuária'}</strong><small>Pecuária</small></span></div>;
   const secondaryRecords=screenId==='inventory'?data?.movements:screenId==='pastures'?data?.occupancy:screenId==='sanitary'?data?.protocols:null;
   const secondaryTitle=screenId==='inventory'?'Histórico de movimentações':screenId==='pastures'?'Histórico de ocupação':screenId==='sanitary'?'Protocolos sanitários':null;
+  const reproductionFemales=(references.animals??[]).filter(animal=>animal.status==='active'&&animal.sex==='female');
 
   return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Dashboard'} notificationCount={screenId==='overview'?(data?.alerts?.length??0):0}
     onSearch={async term=>{try{setSearchResults(await backend.search({term,auth}));setAlertResults(null)}catch(error){setNotice({tone:'error',text:error.message})}}}
@@ -172,7 +174,9 @@ function App(){
       {screenId==='finance'&&<FinanceDecisionPanel insights={depthInsights}/>} 
       {screenId==='reproduction'&&<ReproductionSummary records={rows} metrics={data?.metrics}/>} 
       {screenId==='reproduction'&&<ReproductionDecisionPanel insights={depthInsights}/>} 
+      {screenId==='reproduction'&&<AdvancedReproductionCapture animals={reproductionFemales} onRecord={async input=>{try{await runAction('reproduction','record',input);await load('reproduction');setNotice({tone:'success',text:'Serviço reprodutivo avançado registrado.'})}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
       {screenId==='sanitary'&&<SanitaryAnalyticsPanel insights={depthInsights}/>} 
+      {screenId==='sanitary'&&<SanitaryApplicationsPanel events={data?.events??[]}/>} 
       {screenId==='pastures'&&<PastureDecisionPanel insights={depthInsights}/>} 
       {screenId==='weights'&&<ProductiveIntelligencePanel insights={depthInsights}/>} 
       {screenId==='trades'&&<CommercialSummaryPanel insights={depthInsights}/>} 

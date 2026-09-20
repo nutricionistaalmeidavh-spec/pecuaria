@@ -140,7 +140,7 @@ export function OverviewDashboard({data,onNavigate}){
       </aside>
     </section>
 
-    <section className="dashboard-insights-grid">
+    <section className="dashboard-insights-grid" data-testid="dashboard-secondary">
       <PerformanceCard performance={data?.performance} onNavigate={onNavigate}/>
       <ReproductionCard summary={data?.reproduction} onNavigate={onNavigate}/>
     </section>

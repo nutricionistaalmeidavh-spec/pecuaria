@@ -60,14 +60,7 @@ function buildRecentActivity({active,eventRows,tradeRows}){
     const at=occurredAt(event);
     if(timestamp(at)==null)continue;
     const reproduction=event?.kind==='reproduction';
-    activities.push({
-      kind:reproduction?'reproduction':'sanitary',
-      occurredAt:at,
-      title:reproduction?'Evento reprodutivo':'Manejo sanitário',
-      detail:[event?.animalId,event?.type].filter(Boolean).join(' · '),
-      icon:reproduction?'heart':'shield-plus',
-      target:reproduction?'reproduction':'sanitary'
-    });
+    activities.push({kind:reproduction?'reproduction':'sanitary',occurredAt:at,title:reproduction?'Evento reprodutivo':'Manejo sanitário',detail:[event?.animalId,event?.type].filter(Boolean).join(' · '),icon:reproduction?'heart':'shield-plus',target:reproduction?'reproduction':'sanitary'});
   }
   for(const trade of tradeRows){
     const at=occurredAt(trade);
@@ -82,68 +75,23 @@ export function createCattleDashboardService({persistence,alerts}={}){
   return Object.freeze({
     async snapshot(){
       const [lots,animals,events,trades,finance,alertRows]=await Promise.all([
-        persistence.listRecords('cattle.lots'),
-        persistence.listRecords('cattle.animals'),
-        persistence.listRecords('cattle.events'),
-        persistence.listRecords('cattle.trades'),
-        persistence.listRecords('cattle.finance'),
-        alerts?.list?alerts.list():[]
+        persistence.listRecords('cattle.lots'),persistence.listRecords('cattle.animals'),persistence.listRecords('cattle.events'),persistence.listRecords('cattle.trades'),persistence.listRecords('cattle.finance'),alerts?.list?alerts.list():[]
       ]);
-      const lotRows=payloads(lots);
-      const animalRows=payloads(animals);
-      const active=animalRows.filter(animal=>animal?.status==='active');
+      const lotRows=payloads(lots),animalRows=payloads(animals),active=animalRows.filter(animal=>animal?.status==='active');
       const weights=active.map(animal=>animal?.weights?.at(-1)?.weightKg).filter(finite).map(Number);
-      const eventRows=payloads(events);
-      const tradeRows=payloads(trades);
-      const sanitaryEvents=eventRows.filter(event=>event?.kind==='sanitary');
-      const reproductionEvents=eventRows.filter(event=>event?.kind==='reproduction');
+      const eventRows=payloads(events),tradeRows=payloads(trades),sanitaryEvents=eventRows.filter(event=>event?.kind==='sanitary'),reproductionEvents=eventRows.filter(event=>event?.kind==='reproduction');
       let costMinor=0,incomeMinor=0;
-      for(const entry of payloads(finance)){
-        const amount=finite(entry?.amountMinor)?Number(entry.amountMinor):0;
-        const direction=entry?.direction??entry?.kind;
-        if(direction==='expense'||direction==='cost')costMinor+=amount;
-        if(direction==='income'||direction==='revenue')incomeMinor+=amount;
-      }
-      const kpis=Object.freeze({
-        lots:lots.length,
-        activeAnimals:active.length,
-        averageWeightKg:average(weights),
-        sanitaryEvents:sanitaryEvents.length,
-        trades:trades.length,
-        costMinor,
-        incomeMinor
-      });
+      for(const entry of payloads(finance)){const amount=finite(entry?.amountMinor)?Number(entry.amountMinor):0;const direction=entry?.direction??entry?.kind;if(direction==='expense'||direction==='cost')costMinor+=amount;if(direction==='income'||direction==='revenue')incomeMinor+=amount;}
+      const kpis=Object.freeze({lots:lots.length,activeAnimals:active.length,averageWeightKg:average(weights),sanitaryEvents:sanitaryEvents.length,trades:trades.length,costMinor,incomeMinor});
       const alertList=Object.freeze([...(alertRows??[])]);
-      const primaryKpis=Object.freeze({
-        activeAnimals:kpis.activeAnimals,
-        averageWeightKg:kpis.averageWeightKg,
-        lots:kpis.lots,
-        alerts:alertList.length
-      });
+      const primaryKpis=Object.freeze({activeAnimals:kpis.activeAnimals,averageWeightKg:kpis.averageWeightKg,lots:kpis.lots,alerts:alertList.length});
+      const legacyReproduction=Object.freeze({total:reproductionEvents.length,services:reproductionEvents.filter(event=>event?.type==='service').length,pregnancyChecks:reproductionEvents.filter(event=>event?.type==='pregnancy-check').length,calvings:reproductionEvents.filter(event=>event?.type==='calving').length,weanings:reproductionEvents.filter(event=>event?.type==='weaning').length});
       const eligibleFemaleIds=active.filter(animal=>animal?.sex==='female').map(animal=>animal.id);
-      const reproduction=Object.freeze(reproductionMetrics(reproductionEvents,{eligibleFemaleIds}));
+      const reproductiveManagement=Object.freeze(reproductionMetrics(reproductionEvents,{eligibleFemaleIds}));
       const sanitary=Object.freeze({totalEvents:sanitaryEvents.length,alerts:alertList.length});
-      const lotDistribution=Object.freeze(lotRows.map(lot=>Object.freeze({
-        id:lot.id,
-        name:lot.name??lot.id,
-        purpose:lot.purpose??null,
-        activeAnimals:active.filter(animal=>animal?.lotId===lot.id).length
-      })));
+      const lotDistribution=Object.freeze(lotRows.map(lot=>Object.freeze({id:lot.id,name:lot.name??lot.id,purpose:lot.purpose??null,activeAnimals:active.filter(animal=>animal?.lotId===lot.id).length})));
       const financial=Object.freeze({incomeMinor,costMinor,resultMinor:incomeMinor-costMinor});
-      const performance=buildWeightPerformance(active);
-      const recentActivity=buildRecentActivity({active,eventRows,tradeRows});
-      return Object.freeze({
-        kpis,
-        primaryKpis,
-        alerts:alertList,
-        performance,
-        reproduction,
-        sanitary,
-        lotDistribution,
-        finance:financial,
-        recentActivity,
-        layout:Object.freeze(validateDashboardLayout(DEFAULT_LAYOUT))
-      });
+      return Object.freeze({kpis,primaryKpis,alerts:alertList,performance:buildWeightPerformance(active),reproduction:legacyReproduction,reproductionMetrics:reproductiveManagement,sanitary,lotDistribution,finance:financial,recentActivity:buildRecentActivity({active,eventRows,tradeRows}),layout:Object.freeze(validateDashboardLayout(DEFAULT_LAYOUT))});
     }
   });
 }

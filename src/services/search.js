@@ -7,7 +7,12 @@ export const SEARCHABLE_COLLECTIONS=Object.freeze([
   'cattle.sanitary-protocols',
   'cattle.events',
   'cattle.trades',
-  'cattle.finance'
+  'cattle.finance',
+  'cattle.traceability',
+  'cattle.inventory',
+  'cattle.pastures',
+  'cattle.nutrition',
+  'cattle.tasks'
 ]);
 
 const normalize=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();

@@ -7,6 +7,7 @@ export function createRpcBackend({presentation}){
     return permission?security.authorize({...args,permission}):security.authenticateSession(args);
   }
   const permission=(screenId,mode,action=null)=>security.permissionFor?.({screenId,mode,action})??null;
+  const insightPermission=scope=>['finance','commercial'].includes(scope)?'finance:read':'cattle:read';
   return Object.freeze({
     async describe(auth=null){
       const access={};
@@ -28,6 +29,9 @@ export function createRpcBackend({presentation}){
     logout:auth=>security.revoke(auth),
     async search({term,auth,collections=null,limit=25}){await session(auth);return presentation.services.search.query({term,collections,limit});},
     async alerts({auth}){await session(auth);return presentation.services.alerts.list();},
+    async audit({auth,filter={}}){return security.listAudit({sessionId:auth?.sessionId,token:auth?.token,...filter});},
+    async insights({scope,auth,options={}}){await session(auth,insightPermission(scope));return presentation.services.reporting.insights(scope,options);},
+    async simulateSale({auth,...input}){await session(auth,'finance:read');return presentation.services.reporting.simulateSale(input);},
     async references({auth}){await session(auth);const [lots,animals,data,sanitary,inventory,pastures,nutrition]=await Promise.all([presentation.load('lots',{}),presentation.load('animals',{}),presentation.load('data',{}),presentation.load('sanitary',{}),presentation.load('inventory',{}),presentation.load('pastures',{}),presentation.load('nutrition',{})]);const unwrap=rows=>(rows??[]).map(r=>r.payload??r);const catalog=unwrap(data.rows);return{lots:unwrap(lots.rows),animals:unwrap(animals.rows),farms:catalog.filter(x=>x.registration!==undefined||x.location!==undefined),breeds:catalog.filter(x=>x.species!==undefined),categories:catalog.filter(x=>x.purpose!==undefined&&x.species===undefined&&x.registration===undefined),parties:unwrap(data.parties),protocols:unwrap(sanitary.protocols),inventory:unwrap(inventory.rows),pastures:unwrap(pastures.rows),nutrition:unwrap(nutrition.rows)};},
     async load({screenId,auth,context={}}){
       await session(auth,permission(screenId,'read'));

@@ -6,6 +6,7 @@ import {createRpcBackend} from '../runtime/backend.mjs';
 import {getActionForm} from './action-config.js';
 import {ActionDialog,AnimalDetail,CorralFlow,DataTable,DesktopShell,StatusBanner,WorkspaceScreen,FinanceMetrics,ReproductionSummary} from './components.jsx';
 import {OverviewDashboard} from './dashboard.jsx';
+import {ActionResultPanel,PastureDecisionPanel,ReproductionDecisionPanel,SanitaryAnalyticsPanel,ProductiveIntelligencePanel,FinanceDecisionPanel,CommercialSummaryPanel,FieldModePanel,CommercialSimulator,AdvancedReportsPanel,IoTDetailsPanel} from './depth-components.jsx';
 import {Icon} from './icons.jsx';
 import './styles.css';
 
@@ -21,11 +22,32 @@ const pickRows=data=>{
   if(Array.isArray(data?.rows))return data.rows;
   if(Array.isArray(data?.records))return data.records;
   if(Array.isArray(data?.events))return data.events;
+  if(Array.isArray(data?.issued))return data.issued;
   if(Array.isArray(data?.protocols))return data.protocols;
   if(Array.isArray(data?.backups))return data.backups;
   if(Array.isArray(data?.devices))return data.devices;
   return [];
 };
+
+const safeName=value=>String(value??'arquivo').normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase()||'arquivo';
+const today=()=>new Date().toISOString().slice(0,10);
+
+function downloadActionResult(result){
+  if(!result)return null;
+  if(result.format==='artisys-pecuaria-export'){
+    const blob=new Blob([JSON.stringify(result,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=`artisys-${safeName(result.collection)}-${today()}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    return{format:result.format,collection:result.collection,recordCount:result.records?.length??0,downloaded:true};
+  }
+  if(result.content!=null&&['csv','pdf'].includes(result.format)){
+    const mime=result.mimeType??(result.format==='pdf'?'application/pdf':'text/csv;charset=utf-8');
+    const blob=new Blob([result.content],{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=`${safeName(result.type??'relatorio')}-${today()}.${result.format}`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    return{type:result.type,format:result.format,rowCount:result.rowCount??null,size:result.size??blob.size,downloaded:true};
+  }
+  return null;
+}
 
 function UpdatePanel({updates,state,onState}){
   const [busy,setBusy]=useState(false);
@@ -56,6 +78,10 @@ function App(){
   const [references,setReferences]=useState({});
   const [animalDetail,setAnimalDetail]=useState(null);
   const [financeLotId,setFinanceLotId]=useState('');
+  const [actionResult,setActionResult]=useState(null);
+  const [auditResults,setAuditResults]=useState(null);
+  const [depthInsights,setDepthInsights]=useState(null);
+  const [simulationResult,setSimulationResult]=useState(null);
   const updates=globalThis.artisys?.updates??null;
 
   useEffect(()=>{getBackend().then(async value=>{setBackend(value);setHasUsers((await value.authState()).hasUsers)}).catch(error=>setNotice({tone:'error',text:error.message}))},[]);
@@ -68,6 +94,15 @@ function App(){
     try{setData(await backend.load({screenId:id,auth,context:resolvedContext}))}catch(error){setNotice({tone:'error',text:error.message})}
   }
   useEffect(()=>{void load(screenId)},[screenId,meta,financeLotId]);
+
+  useEffect(()=>{
+    if(!backend||!auth||!screenId)return;
+    const scope={pastures:'pastures',reproduction:'reproduction',sanitary:'sanitary',weights:'performance',finance:'finance',trades:'commercial'}[screenId];
+    if(!scope){setDepthInsights(null);return;}
+    let active=true;
+    backend.insights({scope,auth,options:{}}).then(value=>{if(active)setDepthInsights(value)}).catch(error=>{if(active){setDepthInsights(null);setNotice({tone:'error',text:error.message})}});
+    return()=>{active=false};
+  },[backend,auth,screenId,data]);
 
   async function login(event){
     event.preventDefault();setNotice(null);
@@ -85,27 +120,72 @@ function App(){
   const rows=useMemo(()=>pickRows(data),[data]);
   const activeForm=action?getActionForm(screenId,action):null;
 
+  function surfaceResult(result,{screen=screenId,name=action}={}){
+    const downloaded=downloadActionResult(result);
+    if(downloaded){setActionResult(downloaded);return;}
+    const shouldShow=(screen==='data'&&name==='validateImport')||(screen==='iot'&&['testDevice','startDevice','stopDevice','simulateRfid','simulateWeight'].includes(name));
+    if(shouldShow&&result!=null)setActionResult(result);
+  }
+
   if(!backend)return <div className="boot">Carregando ArtiSys Pecuária…</div>;
   if(!auth)return <div className="login-page"><form className="login-card" onSubmit={login}><div><span className="eyebrow">Gestão pecuária local</span><h1>ArtiSys Pecuária</h1><p>{hasUsers?'Entre para acessar a fazenda.':'Crie o administrador local deste computador.'}</p></div><label><span>Usuário</span><input data-testid="username" autoComplete="username" value={credentials.username} onChange={e=>setCredentials({...credentials,username:e.target.value})}/></label><label><span>Senha</span><input data-testid="password" type="password" minLength="8" autoComplete={hasUsers?'current-password':'new-password'} value={credentials.password} onChange={e=>setCredentials({...credentials,password:e.target.value})}/></label><button data-testid="auth-submit" className="primary">{hasUsers?'Entrar':'Criar administrador'}</button>{notice&&<StatusBanner tone={notice.tone}>{notice.text}</StatusBanner>}</form></div>;
   if(!meta)return <div className="boot" data-testid="authenticated-loading">Carregando ambiente da fazenda…</div>;
 
-  const navigate=(id,targetId=null)=>{setScreenId(id);setNotice(null);setAnimalDetail(null);if(targetId&&id==='animals')backend.load({screenId:'animals',auth,context:{animalId:targetId}}).then(x=>setAnimalDetail(x.detail)).catch(()=>{});};
-  const openEntity=result=>{const collection=String(result?.collection??result?.entityType??'');const id=result?.id??result?.entityId??result?.animalId??null;if(collection.includes('animal'))return navigate('animals',id);if(collection.includes('lot'))return navigate('lots');if(collection.includes('inventory'))return navigate('inventory');if(collection.includes('traceability'))return navigate('traceability');if(collection.includes('task'))return navigate('tasks');return null;};
-  const runAction=async(screenId,action,input)=>backend.action({screenId,action,input,auth,context:{}});
+  const navigate=(id,targetId=null)=>{setScreenId(id);setNotice(null);setAnimalDetail(null);setActionResult(null);setSimulationResult(null);if(targetId&&id==='animals')backend.load({screenId:'animals',auth,context:{animalId:targetId}}).then(x=>setAnimalDetail(x.detail)).catch(()=>{});};
+  const openEntity=result=>{
+    const collection=String(result?.collection??result?.entityType??''),id=result?.id??result?.entityId??result?.animalId??null,payload=result?.payload??{};
+    if(collection.includes('animal'))return navigate('animals',id);
+    if(collection.includes('lot'))return navigate('lots');
+    if(collection.includes('sanitary-protocol'))return navigate('sanitary');
+    if(collection.includes('event'))return navigate(payload.kind==='reproduction'?'reproduction':'sanitary');
+    if(collection.includes('trade'))return navigate('trades');
+    if(collection.includes('finance'))return navigate('finance');
+    if(collection.includes('inventory'))return navigate('inventory');
+    if(collection.includes('traceability'))return navigate('traceability');
+    if(collection.includes('pasture'))return navigate('pastures');
+    if(collection.includes('nutrition'))return navigate('nutrition');
+    if(collection.includes('task'))return navigate('tasks');
+    if(['party','farm','breed','categor'].some(key=>collection.includes(key)))return navigate('data');
+    if(collection.includes('iot'))return navigate('iot');
+    return null;
+  };
+  const runAction=async(id,name,input)=>backend.action({screenId:id,action:name,input,auth,context:{}});
   const navigation=<>{meta.navigation.map(item=><button key={item.id} data-testid={`nav-${item.id}`} className={`nav-item ${item.id===screenId?'on':''}`} onClick={()=>navigate(item.id)}><Icon name={item.icon} size={19}/><span>{item.label}</span></button>)}</>;
   const brand=<div className="brand-lockup"><span className="brand-mark"><Icon name="beef" size={26}/></span><span><strong>{meta.brand.productName??meta.brand.name??'ArtiSys Pecuária'}</strong><small>Pecuária</small></span></div>;
+  const secondaryRecords=screenId==='inventory'?data?.movements:screenId==='pastures'?data?.occupancy:screenId==='sanitary'?data?.protocols:null;
+  const secondaryTitle=screenId==='inventory'?'Histórico de movimentações':screenId==='pastures'?'Histórico de ocupação':screenId==='sanitary'?'Protocolos sanitários':null;
 
   return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Dashboard'} notificationCount={screenId==='overview'?(data?.alerts?.length??0):0}
     onSearch={async term=>{try{setSearchResults(await backend.search({term,auth}));setAlertResults(null)}catch(error){setNotice({tone:'error',text:error.message})}}}
     onNotifications={async()=>{try{setAlertResults(await backend.alerts({auth}));setSearchResults(null)}catch(error){setNotice({tone:'error',text:error.message})}}}
-    onLogout={()=>{setAuth(null);setMeta(null);setScreenId(null);setData(null)}}>
+    onLogout={async()=>{try{await backend.logout(auth)}catch{}finally{setAuth(null);setMeta(null);setScreenId(null);setData(null);setReferences({});setActionResult(null);setAuditResults(null);setDepthInsights(null);setSimulationResult(null)}}}>
     {notice&&<StatusBanner tone={notice.tone}>{notice.text}</StatusBanner>}
+    {actionResult&&<ActionResultPanel result={actionResult} onClose={()=>setActionResult(null)}/>} 
     {searchResults&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Busca global</span><h2>Resultados</h2><p>{searchResults.length} registro(s) encontrado(s).</p></div><button className="ghost" onClick={()=>setSearchResults(null)}>Fechar</button></div><DataTable records={searchResults}/><div className="actions">{searchResults.map((r,i)=><button data-testid={`search-open-${i}`} key={r.id??i} onClick={()=>{openEntity(r);setSearchResults(null)}}>Abrir registro</button>)}</div></section>}
     {alertResults&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Central de alertas</span><h2>Pendências</h2><p>{alertResults.length} alerta(s) operacional(is).</p></div><button className="ghost" onClick={()=>setAlertResults(null)}>Fechar</button></div><DataTable records={alertResults}/><div className="actions">{alertResults.filter(a=>a.target).map(a=><button key={a.id} onClick={()=>{navigate(a.target,a.targetId);setAlertResults(null)}}>Abrir {a.target}</button>)}</div></section>}
     <UpdatePanel updates={updates} state={updateState} onState={setUpdateState}/>
     {screenId==='settings'&&updates&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Aplicativo</span><h2>Atualizações</h2><p>Versão instalada: {updateState?.currentVersion??'—'}.</p></div><div className="actions"><button data-testid="check-updates" onClick={async()=>{setUpdateState(await updates.check())}}>Verificar atualizações</button></div></div>{updateState?.status==='current'&&<StatusBanner tone="success">Você está usando a versão mais recente.</StatusBanner>}{updateState?.status==='error'&&<StatusBanner tone="error">Não foi possível verificar atualizações agora. O sistema continua disponível offline.</StatusBanner>}</section>}
-    {screenId==='overview'?<OverviewDashboard data={data} onNavigate={navigate}/>:<>{screenId==='finance'&&<section className="panel" data-testid="finance-lot-selector"><div className="panel-heading"><div><span className="eyebrow">Resultado por lote</span><h2>Escolha o lote analisado</h2><p>Os indicadores econômicos abaixo são recalculados para o lote selecionado.</p></div></div><div className="form-grid"><label><span>Lote</span><select value={financeLotId} onChange={e=>setFinanceLotId(e.target.value)}><option value="">Selecione um lote</option>{(references.lots??[]).map(lot=><option key={lot.id} value={lot.id}>{lot.name??lot.id}</option>)}</select></label></div></section>}{screenId==='finance'&&<FinanceMetrics metrics={data?.metrics}/>} {screenId==='reproduction'&&<ReproductionSummary records={rows} metrics={data?.metrics}/>} {screenId==='weights'&&<CorralFlow animals={references.animals??[]} onRecord={async input=>{await runAction('weights','record',input);await load('weights');backend.references({auth}).then(setReferences)}}/>}{screenId==='animals'&&animalDetail&&<AnimalDetail detail={animalDetail} onClose={()=>setAnimalDetail(null)}/>}<WorkspaceScreen screenId={screenId} screen={screen} icon={screenNavigation?.icon} records={rows} secondaryRecords={screenId==='inventory'?data?.movements:screenId==='pastures'?data?.occupancy:null} secondaryTitle={screenId==='inventory'?'Histórico de movimentações':screenId==='pastures'?'Histórico de ocupação':null} allowedActions={meta?.access?.[screenId]?.actions??[]}  onAction={async name=>{if(screenId==='animals'&&name==='view360')return;setAction(name);setNotice(null)}}/>{screenId==='animals'&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Ficha individual</span><h2>Abrir animal 360º</h2></div></div><div className="form-grid"><label><span>Animal</span><select defaultValue="" onChange={async e=>{if(!e.target.value)return;const detailData=await backend.load({screenId:'animals',auth,context:{animalId:e.target.value}});setAnimalDetail(detailData.detail)}}><option value="">Selecione</option>{(references.animals??[]).map(a=><option key={a.id} value={a.id}>{a.tag??a.name??a.id}</option>)}</select></label></div></section>}</>}
-    <ActionDialog open={Boolean(action)} definition={activeForm} references={references} busy={busy} onClose={()=>setAction(null)} onSubmit={async input=>{setBusy(true);setNotice(null);try{await backend.action({screenId,action,input,auth,context:{}});setAction(null);setNotice({tone:'success',text:'Operação concluída com sucesso.'});await load();backend.references({auth}).then(setReferences).catch(()=>{})}catch(error){setNotice({tone:'error',text:error.message})}finally{setBusy(false)}}}/>
+    {screenId==='settings'&&<section className="panel" data-testid="audit-panel"><div className="panel-heading"><div><span className="eyebrow">Segurança</span><h2>Trilha de auditoria</h2><p>Consulta local das operações registradas para perfis autorizados.</p></div><div className="actions"><button type="button" onClick={async()=>{try{setAuditResults(await backend.audit({auth,filter:{limit:100}}))}catch(error){setNotice({tone:'error',text:error.message})}}}>Carregar auditoria</button></div></div>{auditResults&&<DataTable records={auditResults}/>}</section>}
+    {screenId==='overview'?<OverviewDashboard data={data} onNavigate={navigate}/>:<>
+      {screenId==='finance'&&<section className="panel" data-testid="finance-lot-selector"><div className="panel-heading"><div><span className="eyebrow">Resultado por lote</span><h2>Escolha o lote analisado</h2><p>Os indicadores econômicos abaixo são recalculados para o lote selecionado.</p></div></div><div className="form-grid"><label><span>Lote</span><select value={financeLotId} onChange={e=>setFinanceLotId(e.target.value)}><option value="">Selecione um lote</option>{(references.lots??[]).map(lot=><option key={lot.id} value={lot.id}>{lot.name??lot.id}</option>)}</select></label></div></section>}
+      {screenId==='finance'&&<FinanceMetrics metrics={data?.metrics}/>} 
+      {screenId==='finance'&&<FinanceDecisionPanel insights={depthInsights}/>} 
+      {screenId==='reproduction'&&<ReproductionSummary records={rows} metrics={data?.metrics}/>} 
+      {screenId==='reproduction'&&<ReproductionDecisionPanel insights={depthInsights}/>} 
+      {screenId==='sanitary'&&<SanitaryAnalyticsPanel insights={depthInsights}/>} 
+      {screenId==='pastures'&&<PastureDecisionPanel insights={depthInsights}/>} 
+      {screenId==='weights'&&<ProductiveIntelligencePanel insights={depthInsights}/>} 
+      {screenId==='trades'&&<CommercialSummaryPanel insights={depthInsights}/>} 
+      {screenId==='trades'&&<CommercialSimulator lots={references.lots??[]} result={simulationResult} onSimulate={async input=>{try{setSimulationResult(await backend.simulateSale({auth,...input}))}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
+      {screenId==='reports'&&<AdvancedReportsPanel lots={references.lots??[]} onGenerate={async({format,...input})=>{try{const result=await backend.action({screenId:'reports',action:format,input,auth,context:{}});surfaceResult(result,{screen:'reports',name:format})}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
+      {screenId==='tasks'&&<FieldModePanel tasks={rows} onComplete={async id=>{try{await runAction('tasks','complete',{id});await load('tasks');setNotice({tone:'success',text:'Manejo concluído e salvo localmente.'})}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
+      {screenId==='iot'&&<IoTDetailsPanel data={data}/>} 
+      {screenId==='weights'&&<CorralFlow animals={references.animals??[]} onRecord={async input=>{await runAction('weights','record',input);await load('weights');backend.references({auth}).then(setReferences)}}/>}
+      {screenId==='animals'&&animalDetail&&<AnimalDetail detail={animalDetail} onClose={()=>setAnimalDetail(null)}/>} 
+      <WorkspaceScreen screenId={screenId} screen={screen} icon={screenNavigation?.icon} records={rows} secondaryRecords={secondaryRecords} secondaryTitle={secondaryTitle} allowedActions={meta?.access?.[screenId]?.actions??[]} onAction={async name=>{if(screenId==='animals'&&name==='view360')return;setAction(name);setNotice(null)}}/>
+      {screenId==='animals'&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Ficha individual</span><h2>Abrir animal 360º</h2></div></div><div className="form-grid"><label><span>Animal</span><select defaultValue="" onChange={async e=>{if(!e.target.value)return;const detailData=await backend.load({screenId:'animals',auth,context:{animalId:e.target.value}});setAnimalDetail(detailData.detail)}}><option value="">Selecione</option>{(references.animals??[]).map(a=><option key={a.id} value={a.id}>{a.tag??a.name??a.id}</option>)}</select></label></div></section>}
+    </>}
+    <ActionDialog open={Boolean(action)} definition={activeForm} references={references} busy={busy} onClose={()=>setAction(null)} onSubmit={async input=>{setBusy(true);setNotice(null);try{const actionName=action,result=await backend.action({screenId,action:actionName,input,auth,context:{}});surfaceResult(result,{screen:screenId,name:actionName});setAction(null);setNotice({tone:'success',text:'Operação concluída com sucesso.'});await load();backend.references({auth}).then(setReferences).catch(()=>{})}catch(error){setNotice({tone:'error',text:error.message})}finally{setBusy(false)}}}/>
   </DesktopShell>;
 }
 

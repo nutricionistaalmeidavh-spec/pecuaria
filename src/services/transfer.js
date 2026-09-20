@@ -7,6 +7,7 @@ export const TRANSFERABLE_COLLECTIONS=Object.freeze([
   'cattle.animals',
   'cattle.breeds',
   'cattle.categories',
+  'cattle.parties',
   'cattle.sanitary-protocols',
   'cattle.events',
   'cattle.trades',

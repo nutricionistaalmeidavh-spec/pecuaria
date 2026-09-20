@@ -10,6 +10,7 @@ on:
       - depth/pecuaria-decision
       - depth/finance-pasture-history
       - depth/reproduction-admin
+      - depth/field-mobile-offline
       - main
   workflow_dispatch:
 

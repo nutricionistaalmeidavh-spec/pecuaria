@@ -26,6 +26,13 @@ export function createProductSecurity(persistence,{productId,policyDefinition={}
           : presentationAccess.defaultRead;
   };
   const auditAppend=event=>audit?.append?audit.append(event):Promise.resolve(null);
+  const profileRows=()=>Object.entries(policyDefinition).map(([id,permissions])=>({id,permissions:[...permissions]}));
+  const normalizeRoles=value=>{
+    const roles=[...new Set(Array.isArray(value)?value:[])];
+    if(!roles.length)throw new TypeError('At least one role is required.');
+    for(const role of roles)if(!Object.hasOwn(policyDefinition,role))throw new TypeError(`Unknown role: ${role}`);
+    return roles;
+  };
 
   async function userByName(name){
     return (await persistence.listRecords(users)).find(record=>record.payload.username===String(name).toLowerCase())??null;
@@ -48,21 +55,35 @@ export function createProductSecurity(persistence,{productId,policyDefinition={}
     };
   }
 
+  async function admin(args){return authorized({...args,permission:'security:admin'})}
+  async function ensureUniqueUsername(username,exceptId=null){
+    const existing=await userByName(username);
+    if(existing&&existing.payload.id!==exceptId)throw new Error('username already exists');
+  }
+  async function ensureAdminSurvives(current,next){
+    if(!current.active||!current.roles.includes('admin'))return;
+    if(next.active&&next.roles.includes('admin'))return;
+    const activeAdmins=(await persistence.listRecords(users)).filter(record=>record.payload.active&&record.payload.roles.includes('admin')&&record.payload.id!==current.id);
+    if(activeAdmins.length===0)throw new Error('last active admin cannot be disabled or demoted');
+  }
+  async function passwordFields(password){
+    if(String(password).length<8)throw new TypeError('password must have at least 8 characters');
+    const salt=rand(16);
+    return{passwordSalt:salt,passwordIterations:120000,passwordHash:await hashPassword(password,salt)};
+  }
+
   return Object.freeze({
     productId,
     permissionFor,
     async hasUsers(){return(await persistence.listRecords(users)).length>0},
     async bootstrapUser({id,username,password,roles=['admin'],active=true}={}){
       if(await this.hasUsers())throw new Error('bootstrap is only allowed with no users');
-      if(String(password).length<8)throw new TypeError('password must have at least 8 characters');
-      const salt=rand(16);
+      const credentials=await passwordFields(password);
       const user={
         id:text(id,'user id'),
         username:text(username,'username').toLowerCase(),
-        passwordSalt:salt,
-        passwordIterations:120000,
-        passwordHash:await hashPassword(password,salt),
-        roles:[...new Set(roles)],
+        ...credentials,
+        roles:normalizeRoles(roles),
         active
       };
       await persistence.putRecord(users,user.id,user,{expectedVersion:0});
@@ -100,6 +121,48 @@ export function createProductSecurity(persistence,{productId,policyDefinition={}
     async listAudit({sessionId,token,...filter}={}){
       await authorized({sessionId,token,permission:'audit:read'});
       return audit?.list?audit.list(filter):[];
+    },
+    async listProfiles(args={}){
+      await admin(args);
+      return profileRows();
+    },
+    async listUsers(args={}){
+      await admin(args);
+      return (await persistence.listRecords(users)).map(record=>({...publicUser(record.payload),version:record.version})).sort((a,b)=>a.username.localeCompare(b.username));
+    },
+    async createUser({sessionId,token,user}={}){
+      const actor=await admin({sessionId,token});
+      if(!user)throw new TypeError('user is required');
+      const username=text(user.username,'username').toLowerCase();
+      await ensureUniqueUsername(username);
+      const credentials=await passwordFields(user.password);
+      const next={id:text(user.id,'user id'),username,...credentials,roles:normalizeRoles(user.roles),active:user.active!==false};
+      await persistence.putRecord(users,next.id,next,{expectedVersion:0});
+      await auditAppend({actorId:actor.user.id,action:'security.user.create',entityType:'user',entityId:next.id,metadata:{username:next.username,roles:next.roles,active:next.active}});
+      return publicUser(next);
+    },
+    async updateUser({sessionId,token,id,changes={}}={}){
+      const actor=await admin({sessionId,token});
+      const record=await persistence.getRecord(users,text(id,'user id'));
+      if(!record)throw new Error('user not found');
+      const current=record.payload;
+      const username=changes.username===undefined?current.username:text(changes.username,'username').toLowerCase();
+      await ensureUniqueUsername(username,current.id);
+      const next={...current,username,roles:changes.roles===undefined?current.roles:normalizeRoles(changes.roles),active:changes.active===undefined?current.active:Boolean(changes.active)};
+      await ensureAdminSurvives(current,next);
+      await persistence.putRecord(users,next.id,next,{expectedVersion:record.version});
+      await auditAppend({actorId:actor.user.id,action:'security.user.update',entityType:'user',entityId:next.id,metadata:{username:next.username,roles:next.roles,active:next.active}});
+      return publicUser(next);
+    },
+    async resetUserPassword({sessionId,token,id,password}={}){
+      const actor=await admin({sessionId,token});
+      const record=await persistence.getRecord(users,text(id,'user id'));
+      if(!record)throw new Error('user not found');
+      const credentials=await passwordFields(password);
+      const next={...record.payload,...credentials};
+      await persistence.putRecord(users,next.id,next,{expectedVersion:record.version});
+      await auditAppend({actorId:actor.user.id,action:'security.user.password.reset',entityType:'user',entityId:next.id,metadata:{}});
+      return publicUser(next);
     }
   });
 }

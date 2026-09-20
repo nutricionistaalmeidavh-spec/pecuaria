@@ -16,11 +16,12 @@ O P1 deve transformar funcionalidades hoje parciais em fluxos operacionais compl
 2. Nenhuma funcionalidade deste P1 depende de nuvem, API paga ou conta de terceiro.
 3. A persistência primária continua local no produto.
 4. Integrações externas futuras são opcionais e não podem bloquear o uso normal.
-5. Toda operação nova de backend precisa de superfície de UI quando for operação destinada ao usuário.
+5. Toda operação nova de backend destinada ao usuário precisa de superfície de UI.
 6. Toda ação/tela/RPC nova deve entrar no contrato de QA.
 7. O modo campo continua usando sincronização local por arquivo criptografado AES-GCM.
 8. Importações externas são tratadas como arquivos locais; não será criado cliente fiscal online neste P1.
 9. Não transformar este P1 em contabilidade completa, gestão leiteira, confinamento especializado ou plataforma de genética.
+10. O P1 não adicionará nova tela principal ao menu: financeiro permanece em `finance`, pastagens em `pastures` e campo em `tasks`.
 
 ## 3. Arquitetura geral
 
@@ -36,7 +37,7 @@ Fluxo de campo:
 
 Fluxo financeiro:
 
-`Finance UI -> ações financeiras administrativas -> FinanceAdminService -> lançamentos/títulos/baixas -> projeções derivadas -> SQLite`
+`Finance UI -> ações financeiras administrativas -> FinanceAdminService -> títulos/baixas/conciliações -> projeções derivadas -> SQLite`
 
 Fluxo de pastagem:
 
@@ -49,7 +50,7 @@ Fluxo de pastagem:
 O modo campo atual deve manter tarefa, pesagem, movimentação e sanidade e ganhar:
 
 - reprodução rápida;
-- nascimento;
+- registro atômico de nascimento;
 - desmame;
 - morte/baixa;
 - leitura/associação manual de RFID/EID;
@@ -63,30 +64,34 @@ O modo campo atual deve manter tarefa, pesagem, movimentação e sanidade e ganh
 
 A interface continua orientada a uso em curral/campo: alvos grandes, poucos campos por operação, confirmação clara e nenhuma dependência de conectividade.
 
-### 4.2. Novos quick kinds
+### 4.2. Novos quick kinds e destinos
 
-`src/field-sync.js` passa a reconhecer, no mínimo:
+`src/field-sync.js` passa a reconhecer quick kinds com destino explícito:
 
-- `reproduction.record`
-- `animal.birth`
-- `animal.weaning`
-- `animal.death`
-- `rfid.bind`
-- `traceability.save`
-- `animal.batchMove`
-- `animal.batchLifecycle`
-- `sanitary.batchRecord`
-- `reproduction.batchRecord`
-- `pasture.enterLot`
-- `pasture.leaveLot`
-- `animal.bodyScore`
-- `pasture.score`
+| Quick kind | Destino contratado |
+|---|---|
+| `reproduction.record` | `reproduction.record` |
+| `animal.birth` | nova ação `animals.registerBirth` |
+| `animal.weaning` | `reproduction.record` com `type=weaning` |
+| `animal.death` | `animals.lifecycle` com `type=death` |
+| `rfid.bind` | `iot.bindRfid` |
+| `traceability.save` | `traceability.save` |
+| `animal.batchMove` | `animals.batchMove` |
+| `animal.batchLifecycle` | `animals.batchLifecycle` |
+| `sanitary.batchRecord` | `sanitary.batchRecord` |
+| `reproduction.batchRecord` | `reproduction.batchRecord` |
+| `pasture.enterLot` | `pastures.enterLot` |
+| `pasture.leaveLot` | `pastures.leaveLot` |
+| `animal.bodyScore` | nova ação `animals.recordBodyCondition` |
+| `pasture.score` | nova ação `pastures.recordAssessment` |
 
-Cada quick kind é normalizado para um comando explícito `{screenId, action, input}` ou, quando a operação não pertencer à superfície existente, para uma nova ação contratada do módulo correto.
+`animals.registerBirth` cria o bezerro e o evento de nascimento na mesma transação. O input mínimo é `id`, `tag`, `farmUnitId`, `birthDate`, `sex`, com `damId`, `sireId`, `lotId`, `breedId`, `categoryId`, `rfid` e observações opcionais. Se qualquer validação falhar, nenhum dos dois registros é persistido.
+
+Cada quick kind é normalizado para um comando explícito `{screenId, action, input}`. Não haverá comando genérico arbitrário no pacote offline.
 
 ### 4.3. Snapshot offline
 
-`SNAPSHOT_COLLECTIONS` passa a incluir as coleções necessárias para operar sem internet, incluindo:
+`SNAPSHOT_COLLECTIONS` passa a incluir as coleções necessárias para operar sem internet:
 
 - `cattle.tasks`
 - `cattle.animals`
@@ -100,13 +105,17 @@ Cada quick kind é normalizado para um comando explícito `{screenId, action, in
 - `cattle.breeding-seasons`
 - `cattle.reproduction-genetics`
 - `cattle.reproduction-dose-stock`
-- coleções de avaliação corporal/pastagem criadas neste P1.
+- `cattle.body-condition`
+- `cattle.pasture-assessments`
+- `cattle.pasture-rotation-plan`.
 
 O snapshot continua sendo emitido apenas pela base. O aparelho de campo recebe cópia de leitura e aplica somente atualizações que não conflitam com operações locais pendentes.
 
+Fotos de pastagem não são embutidas no pacote do P1; o snapshot leva apenas metadados e referência local. Transferência binária de fotos fica fora do escopo deste P1.
+
 ### 4.4. Animal 360º offline
 
-A consulta offline usa apenas dados do snapshot local. Ela deve mostrar identificação, lote, peso recente, eventos sanitários/reprodutivos recentes, rastreabilidade, tarefas pendentes e histórico essencial. Não haverá edição livre por JSON.
+A consulta offline usa apenas dados do snapshot local. Ela mostra identificação, lote, peso recente, escore corporal recente, eventos sanitários/reprodutivos recentes, rastreabilidade, tarefas pendentes e histórico essencial. Não haverá edição livre por JSON.
 
 ### 4.5. Conflitos, idempotência e segurança
 
@@ -117,6 +126,7 @@ A consulta offline usa apenas dados do snapshot local. Ela deve mostrar identifi
 - Falha de operação remota gera `conflict` com erro legível; não há fallback silencioso.
 - Pacote expirado, chave incorreta ou autenticação AES-GCM inválida é rejeitado antes de qualquer escrita.
 - Operações coletivas devem ser determinísticas e não repetir efeitos em retry.
+- `registerBirth` e demais operações multi-entidade usam transação.
 
 ## 5. Financeiro administrativo local
 
@@ -129,25 +139,26 @@ O financeiro atual permanece responsável por resultado econômico produtivo. O 
 Novas coleções:
 
 - `cattle.finance-accounts` — caixas/contas locais;
-- `cattle.finance-payables` — contas a pagar;
-- `cattle.finance-receivables` — contas a receber;
-- `cattle.finance-settlements` — baixas/pagamentos/recebimentos;
+- `cattle.finance-titles` — títulos a pagar e a receber;
+- `cattle.finance-settlements` — baixas/pagamentos/recebimentos e estornos;
 - `cattle.finance-categories` — categorias administrativas;
-- `cattle.finance-reconciliations` — conciliações manuais;
-- `cattle.finance-imports` — metadados de arquivos importados, sem armazenar segredo externo.
+- `cattle.finance-reconciliations` — linhas importadas e conciliações manuais;
+- `cattle.finance-imports` — metadados dos arquivos importados, sem armazenar segredo externo.
+
+Um único `finance-titles` usa `direction=payable|receivable`; não haverá coleções paralelas de contas a pagar e receber.
 
 ### 5.3. Conta a pagar/receber
 
-Título financeiro deve suportar:
+Título financeiro suporta:
 
 - id;
 - descrição;
 - direção (`payable` ou `receivable`);
 - valor original em centavos;
-- valor aberto em centavos;
+- valor aberto derivado das baixas válidas;
 - emissão;
 - vencimento;
-- status (`open`, `partial`, `settled`, `cancelled`);
+- status derivado (`open`, `partial`, `settled`, `cancelled`);
 - categoria;
 - conta/caixa opcional;
 - `partyId` opcional;
@@ -156,25 +167,44 @@ Título financeiro deve suportar:
 - documento/referência opcional;
 - observações.
 
-### 5.4. Baixas
+`openAmountMinor` e status financeiro não são campos livremente editáveis; são derivados pelo serviço.
 
-Uma baixa deve ser uma entidade imutável após criação, exceto correção por estorno explícito. Ela contém título, valor, data, conta, método e observação.
+### 5.4. Baixas e estornos
+
+Uma baixa é imutável após criação. Correção é feita somente por estorno explícito, também imutável, referenciando a baixa original.
 
 Invariantes:
 
 - baixa > 0;
-- soma de baixas não pode ultrapassar o valor original;
-- baixa parcial muda título para `partial`;
-- baixa total muda título para `settled`;
-- título cancelado não aceita baixa;
-- retry da mesma operação não duplica baixa;
-- estorno cria movimento inverso auditável; não apaga histórico.
+- soma líquida de baixas válidas não pode ultrapassar o valor original;
+- baixa parcial resulta em `partial`;
+- baixa total resulta em `settled`;
+- título cancelado não aceita nova baixa;
+- retry com o mesmo `operationId` não duplica baixa;
+- estorno recompõe o aberto e mantém histórico auditável;
+- baixa/estorno e atualização derivada do título ocorrem na mesma transação.
 
-### 5.5. Caixa e fluxo de caixa
+### 5.5. Ações financeiras contratadas
 
-O saldo é derivado de baixas reais, não armazenado como número editável livremente.
+A tela `finance` ganha ações de apresentação explícitas:
 
-A UI deve exibir:
+- `saveAccount`
+- `saveCategory`
+- `saveTitle`
+- `cancelTitle`
+- `settleTitle`
+- `reverseSettlement`
+- `importStatement`
+- `reconcileStatement`
+- `importInvoiceXml`
+
+Essas ações entram em `qa/product-contract.json`, `qa/api-contract.json`, forms tipados e E2E.
+
+### 5.6. Caixa e fluxo de caixa
+
+O saldo é derivado das baixas e estornos, não armazenado como número editável livremente.
+
+A UI exibe:
 
 - saldo por conta;
 - entradas realizadas;
@@ -185,20 +215,22 @@ A UI deve exibir:
 - previsto x realizado;
 - filtros por categoria, parte, lote e período.
 
-### 5.6. Conciliação manual
+### 5.7. Conciliação manual
 
 A conciliação deste P1 é local e manual:
 
-- importar CSV simples de extrato é permitido;
-- usuário relaciona uma linha importada a uma baixa existente ou cria ajuste explícito;
+- importar CSV simples de extrato;
+- cada linha importada recebe identidade estável baseada no arquivo + índice + conteúdo normalizado;
+- usuário relaciona uma linha a uma baixa existente ou cria ajuste explícito;
 - linha conciliada não pode ser conciliada novamente;
+- reimportar o mesmo arquivo não duplica linhas;
 - não haverá Open Finance, Pluggy ou serviço bancário obrigatório.
 
-### 5.7. XML/NF-e opcional
+### 5.8. XML/NF-e opcional
 
-O usuário pode selecionar um XML local. O sistema extrai somente dados úteis para sugerir título/parte/valor/documento. Nenhuma transmissão para SEFAZ será feita neste P1.
+O usuário seleciona um XML local. O parser extrai somente dados úteis para sugerir título/parte/valor/documento. Nenhuma transmissão para SEFAZ é feita neste P1.
 
-Falha de parse não grava título parcialmente.
+A importação exige confirmação do usuário antes de criar título. Falha de parse ou cancelamento não grava título parcialmente.
 
 ## 6. Pastagens operacionais
 
@@ -220,6 +252,7 @@ Mapa é esquemático e local. Não depende de Google Maps, Mapbox ou tile server
 
 Nova coleção `cattle.pasture-assessments`:
 
+- id;
 - pastureId;
 - occurredAt;
 - score configurável;
@@ -229,24 +262,26 @@ Nova coleção `cattle.pasture-assessments`:
 - notes;
 - photoPaths locais opcionais.
 
-Os escores devem aceitar uma escala configurável pela propriedade, com default 1–5.
+Os escores aceitam uma escala configurável pela propriedade, com default 1–5. A ação contratada é `pastures.recordAssessment`.
 
 ### 6.3. Escore corporal
 
 Nova coleção `cattle.body-condition`:
 
+- id;
 - animalId;
 - occurredAt;
 - score;
 - scaleId;
 - notes.
 
-Default para bovinos: escala configurável, sem assumir significado clínico além da escala definida pelo usuário.
+A escala é configurável; o default do produto é 1–5. A ação contratada é `animals.recordBodyCondition`. O sistema registra o valor informado e não produz diagnóstico clínico.
 
 ### 6.4. Planejamento de rotação
 
 Nova coleção `cattle.pasture-rotation-plan`:
 
+- id;
 - pastureId;
 - lotId;
 - plannedEnterAt;
@@ -254,11 +289,11 @@ Nova coleção `cattle.pasture-rotation-plan`:
 - status (`planned`, `active`, `completed`, `cancelled`);
 - notes.
 
-A ocupação realizada permanece em `cattle.pasture-occupancy`. O sistema compara planejado x realizado em vez de sobrescrever o plano.
+A ação contratada é `pastures.saveRotationPlan`. A ocupação realizada permanece em `cattle.pasture-occupancy`. O sistema compara planejado x realizado em vez de sobrescrever o plano.
 
 ### 6.5. Indicadores
 
-A tela deve derivar:
+A tela deriva:
 
 - UA/ha atual;
 - capacidade x ocupação;
@@ -270,19 +305,19 @@ A tela deve derivar:
 - tendência do escore;
 - rotação planejada x realizada.
 
-Ausência de dados deve aparecer como `sem dados`, não como zero falso.
+Ausência de dados aparece como `sem dados`, não como zero falso.
 
 ## 7. UI
 
 ### 7.1. Navegação
 
-O P1 não adiciona telas principais ao menu se os fluxos couberem nas telas atuais:
+O P1 não adiciona telas principais ao menu:
 
 - financeiro administrativo fica em `finance`;
 - aprofundamento de pastagem fica em `pastures`;
 - campo ampliado fica no workspace já exibido em `tasks`.
 
-Nova tela só será criada se a densidade tornar a tela existente impraticável; isso exigirá atualização explícita do contrato.
+A densidade é resolvida com painéis internos, tabs/segmentos e drawers/modais existentes, sem aumentar as 17 telas navegáveis.
 
 ### 7.2. Finance UI
 
@@ -310,22 +345,22 @@ Adicionar dentro de `pastures`:
 
 ### 7.4. Field UI
 
-`FieldMobileWorkspace` passa a usar seções compactas e selecionáveis para não exibir todos os formulários simultaneamente. Os fluxos coletivos reutilizam seletores multi-animal. A consulta Animal 360º offline deve abrir sem abandonar o modo campo.
+`FieldMobileWorkspace` usa seções compactas e selecionáveis para não exibir todos os formulários simultaneamente. Os fluxos coletivos reutilizam seletores multi-animal. A consulta Animal 360º offline abre sem abandonar o modo campo.
 
 ## 8. Contratos
 
 O P1 mantém `qa/product-contract.json` e `qa/api-contract.json` como contratos explícitos.
 
-As 49 ações atuais só serão incrementadas se novas ações de apresentação forem necessárias. Novos RPCs só serão criados quando uma operação não se encaixar de forma limpa em `action`, `fieldSync` ou serviços já expostos.
+A superfície permanece com 17 telas principais. A contagem de ações aumenta apenas pelas ações explicitamente definidas nesta especificação. Novos RPCs só serão criados se uma operação não se encaixar de forma limpa em `action`, `fieldSync` ou serviços já expostos; a preferência é não ampliar RPCs.
 
-A Fase 5 deve continuar comparando igualdade de conjuntos, não apenas presença parcial.
+A Fase 5 continua comparando igualdade de conjuntos, não apenas presença parcial.
 
 ## 9. Auditoria e RBAC
 
 - criação/edição/cancelamento de título: permissão financeira;
 - baixa/estorno: permissão financeira específica;
 - conciliação: permissão financeira;
-- avaliações de pastagem: permissão de manejo/pastagem;
+- avaliações/rotação de pastagem: permissão de manejo/pastagem;
 - quick operations de campo respeitam o usuário autenticado e a permissão da ação de destino;
 - todas as mutações críticas geram auditoria com actorId, entidade, ação e metadados não sensíveis.
 
@@ -335,7 +370,7 @@ O pacote offline não transporta senha de usuário nem token de sessão. A chave
 
 Novas coleções usam a persistência genérica existente; nenhuma tabela de domínio legada deve ser destruída.
 
-O banco antigo precisa abrir normalmente após upgrade. Dados existentes de financeiro produtivo e pastagem continuam válidos sem backfill obrigatório.
+O banco anterior precisa abrir normalmente após upgrade. Dados existentes de financeiro produtivo e pastagem continuam válidos sem backfill obrigatório.
 
 Campos novos são opcionais quando isso preservar compatibilidade. Invariantes novas se aplicam a novas operações e não tornam registros antigos ilegíveis.
 
@@ -344,7 +379,8 @@ Campos novos são opcionais quando isso preservar compatibilidade. Invariantes n
 - validação ocorre antes da primeira escrita quando possível;
 - operações multi-entidade usam transação;
 - erro financeiro nunca deixa título parcialmente baixado;
-- erro de pastagem nunca fecha ocupação sem registrar a contraparte esperada;
+- erro de nascimento nunca cria apenas animal ou apenas evento;
+- erro de pastagem nunca fecha ocupação de forma parcial;
 - erro de importação CSV/XML não gera registros parciais;
 - conflito offline é registrado e apresentado ao usuário;
 - nenhum erro de integração opcional impede o core local.
@@ -353,9 +389,11 @@ Campos novos são opcionais quando isso preservar compatibilidade. Invariantes n
 
 ### 12.1. Unitários
 
-- normalização dos novos quick kinds;
+- normalização de todos os quick kinds novos;
+- nascimento atômico;
 - cálculos de saldo/aberto/status;
 - previsto x realizado;
+- idempotência de baixa e conciliação;
 - rotação e métricas de descanso/ocupação;
 - escalas de escores;
 - parsing local de CSV/XML.
@@ -369,6 +407,7 @@ Campos novos são opcionais quando isso preservar compatibilidade. Invariantes n
 - entrada/saída de pastagem;
 - avaliação e rotação;
 - body score;
+- nascimento sem escrita parcial;
 - quick operations aplicadas via backend autenticado.
 
 ### 12.3. Offline contract
@@ -390,14 +429,15 @@ Também testar pacote adulterado, expirado, chave errada e conflito de snapshot.
 
 ### 12.4. E2E
 
-Playwright deve cobrir pelo menos:
+Playwright cobre pelo menos:
 
 - criar título -> baixar parcialmente -> quitar;
+- estornar baixa;
 - previsão financeira;
 - importar arquivo local válido e rejeitar inválido;
 - cadastrar avaliação de pasto;
 - planejar rotação e registrar realizado;
-- executar quick reproduction/lifecycle/pasture no modo campo;
+- executar quick reproduction/nascimento/baixa/pasture no modo campo;
 - abrir Animal 360º offline;
 - navegar por todas as ações contratadas.
 
@@ -421,9 +461,9 @@ Antes de merge:
 3. Expor ações e UI financeira.
 4. Expandir `field-sync` e seus snapshots/quick kinds.
 5. Expandir o `FieldMobileWorkspace`.
-6. Criar avaliações/rotação/escores de pastagem.
-7. Expor UI de pastagens.
-8. Atualizar contratos e baseline quando a superfície mudar.
+6. Criar avaliações/rotação/escores de pastagem e nascimento atômico.
+7. Expor UI de pastagens e novos fluxos de animais.
+8. Atualizar contratos e baseline para a superfície definida.
 9. Atualizar matriz funcional/status do produto.
 10. Rodar QA completo e corrigir regressões antes de merge.
 
@@ -434,6 +474,7 @@ O P1 é aceito quando:
 - os três blocos funcionam sem internet e sem serviço pago;
 - nenhuma mutação financeira duplica efeito em retry;
 - nenhuma operação offline é aplicada duas vezes;
+- nascimento nunca produz registro parcial;
 - Animal 360º pode ser consultado no snapshot de campo;
 - financeiro mostra aberto, realizado e previsto coerentes com os lançamentos;
 - pastagem mostra ocupação, descanso, avaliações e planejamento sem confundir ausência de dados com zero;
@@ -449,6 +490,7 @@ O P1 é aceito quando:
 - contabilidade completa;
 - folha de pagamento;
 - mapa online com tiles externos obrigatórios;
+- transferência binária de fotos no pacote offline;
 - telemetria cloud obrigatória;
 - manejo leiteiro completo;
 - confinamento especializado;

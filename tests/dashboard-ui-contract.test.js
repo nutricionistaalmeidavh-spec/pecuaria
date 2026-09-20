@@ -28,6 +28,7 @@ test('P0-P2 shell uses compact green livestock navigation with semantic icons',(
     trades:'badge-dollar-sign',
     finance:'wallet-cards',
     reports:'chart-no-axes-combined',
+    data:'database',
     iot:'radio-tower',
     settings:'settings'
   });

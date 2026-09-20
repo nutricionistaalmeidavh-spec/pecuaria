@@ -1,4 +1,5 @@
 export const SEARCHABLE_COLLECTIONS=Object.freeze([
+  'cattle.farm-units',
   'cattle.lots',
   'cattle.animals',
   'cattle.breeds',

@@ -4,14 +4,22 @@ import {Icon} from './icons.jsx';
 export function StatusBanner({tone='info',children}){return <div className={`status ${tone}`} role={tone==='error'?'alert':'status'}>{children}</div>}
 
 export function DesktopShell({brand,navigation,title,children,onLogout,notificationCount=0}){
+  const [mobileNavOpen,setMobileNavOpen]=useState(false);
+  useEffect(()=>{
+    const onKeyDown=event=>{if(event.key==='Escape')setMobileNavOpen(false)};
+    window.addEventListener('keydown',onKeyDown);
+    return()=>window.removeEventListener('keydown',onKeyDown);
+  },[]);
   return <div className="shell">
-    <aside className="sidebar">
+    <button className={`sidebar-scrim ${mobileNavOpen?'show':''}`} type="button" aria-label="Fechar menu" onClick={()=>setMobileNavOpen(false)}/>
+    <aside className="sidebar" data-testid="sidebar" data-open={String(mobileNavOpen)}>
       <div className="brand">{brand}</div>
-      <nav aria-label="Navegação principal">{navigation}</nav>
+      <nav aria-label="Navegação principal" onClick={()=>setMobileNavOpen(false)}>{navigation}</nav>
       <div className="sidebar-foot"><Icon name="beef" size={18}/><span>Gestão local-first</span></div>
     </aside>
     <div className="workspace">
       <header className="topbar">
+        <button data-testid="mobile-nav-toggle" className="mobile-nav-toggle" type="button" aria-label="Abrir menu" aria-expanded={mobileNavOpen} onClick={()=>setMobileNavOpen(open=>!open)}><Icon name="menu" size={21}/></button>
         <div className="topbar-title"><small>ArtiSys Pecuária</small><h1>{title}</h1></div>
         <label className="global-search"><Icon name="search" size={18}/><input aria-label="Busca global" placeholder="Buscar animal, lote ou informação..."/></label>
         <div className="topbar-actions">
@@ -25,12 +33,48 @@ export function DesktopShell({brand,navigation,title,children,onLogout,notificat
   </div>;
 }
 
+const domainLabels={id:'ID',name:'Nome',tag:'Brinco',lotId:'Lote',farmUnitId:'Fazenda / unidade',purpose:'Finalidade',status:'Status',sex:'Sexo',weightKg:'Peso (kg)',measuredAt:'Pesagem em',animalId:'Animal',relatedAnimalId:'Animal relacionado',kind:'Tipo',type:'Evento',occurredAt:'Data',performedAt:'Realizado em',nextDueAt:'Próxima data',protocolId:'Protocolo',productItemId:'Produto / insumo',dose:'Dose',unit:'Unidade',partyId:'Cliente / fornecedor',animalIds:'Animais',totalAmountMinor:'Valor total',amountMinor:'Valor',description:'Descrição',category:'Categoria',profileId:'Integração',stationId:'Estação / curral',farmId:'Fazenda',enabled:'Ativo'};
+const humanize=key=>domainLabels[key]??String(key).replace(/([A-Z])/g,' $1').replace(/[-_]/g,' ').replace(/^./,letter=>letter.toUpperCase());
+
 export function DataTable({records=[]}){
   const rows=records.map(v=>v?.payload??v);
   const columns=useMemo(()=>[...new Set(rows.flatMap(r=>Object.keys(r??{})))].filter(k=>!['metadata','passwordHash','passwordSalt','tokenHash'].includes(k)).slice(0,8),[records]);
   if(!rows.length)return <div className="empty"><strong>Nenhum registro</strong><span>Os dados aparecerão aqui quando forem cadastrados.</span></div>;
-  const render=v=>v==null?'—':Array.isArray(v)?v.join(', '):typeof v==='object'?JSON.stringify(v):String(v);
-  return <div className="table-wrap"><table><thead><tr>{columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={row.id??i}>{columns.map(c=><td key={c}>{render(row[c])}</td>)}</tr>)}</tbody></table></div>;
+  const render=(v,key)=>{
+    if(v==null)return '—';
+    if((key==='amountMinor'||key==='totalAmountMinor')&&Number.isFinite(Number(v)))return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)/100);
+    if(typeof v==='boolean')return v?'Sim':'Não';
+    if(Array.isArray(v))return v.join(', ');
+    if(typeof v==='object')return JSON.stringify(v);
+    return String(v);
+  };
+  return <div className="table-wrap" data-testid="data-table"><table className="responsive-table"><thead><tr>{columns.map(c=><th key={c}>{humanize(c)}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={row.id??i}>{columns.map(c=><td key={c} data-label={humanize(c)}>{render(row[c],c)}</td>)}</tr>)}</tbody></table></div>;
+}
+
+const workspaceDescriptions={
+  lots:'Organize grupos de manejo e acompanhe a distribuição do rebanho.',
+  animals:'Consulte identificação, lote, finalidade e ciclo de vida dos animais.',
+  weights:'Registre pesagens e preserve o histórico individual de desempenho.',
+  sanitary:'Centralize protocolos, aplicações e próximos manejos sanitários.',
+  reproduction:'Acompanhe cobertura, diagnóstico, parto e desmame.',
+  trades:'Registre compras e vendas vinculadas ao rebanho.',
+  finance:'Acompanhe custos e receitas relacionados à operação pecuária.',
+  reports:'Emita relatórios zootécnicos e documentos operacionais.',
+  iot:'Configure integrações locais com RFID, balanças e dispositivos compatíveis.',
+  settings:'Administre backup, restauração e preferências locais do sistema.'
+};
+
+export function WorkspaceScreen({screenId,screen,icon,records,onAction}){
+  return <section className="workspace-screen panel" data-testid="workspace-screen">
+    <div className="workspace-screen-heading">
+      <div className="workspace-screen-intro">
+        <span className="workspace-screen-icon" data-testid="workspace-screen-icon"><Icon name={icon} size={21}/></span>
+        <div><span className="eyebrow">Operação</span><h2>{screen?.title}</h2><p>{workspaceDescriptions[screenId]??'Gerencie os registros desta área.'}</p></div>
+      </div>
+      <div className="actions">{Object.entries(screen?.actionDefinitions??{}).map(([name,definition])=><button key={name} data-testid={`action-${screenId}-${name}`} onClick={()=>onAction(name)}>{definition.label??name}</button>)}</div>
+    </div>
+    <DataTable records={records}/>
+  </section>;
 }
 
 export function ActionDialog({open,definition,onClose,onSubmit,busy=false}){

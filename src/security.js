@@ -3,7 +3,7 @@ import {createAuditService} from './audit.js';
 
 export const SECURITY_POLICY=Object.freeze({
   admin:['*'],
-  manager:['cattle:read','cattle:write','finance:read','reports:read','audit:read','session:revoke','settings:read','settings:backup','iot:read'],
+  manager:['cattle:read','cattle:write','finance:read','reports:read','audit:read','session:revoke','settings:read','settings:backup','iot:read','iot:write'],
   'field-operator':['cattle:read','cattle:write','reports:read','session:revoke'],
   finance:['cattle:read','finance:read','reports:read','session:revoke'],
   viewer:['cattle:read','reports:read','session:revoke']
@@ -13,6 +13,7 @@ export const PRESENTATION_ACCESS=Object.freeze({
   defaultRead:'cattle:read',
   defaultWrite:'cattle:write',
   screens:Object.freeze({
+    data:{read:'cattle:read',write:'cattle:write'},
     finance:{read:'finance:read'},
     reports:{read:'reports:read',write:'reports:read'},
     iot:{read:'iot:read',write:'iot:write'},

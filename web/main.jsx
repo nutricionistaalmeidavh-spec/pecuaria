@@ -10,6 +10,7 @@ import {ActionResultPanel,PastureDecisionPanel,ReproductionDecisionPanel,Sanitar
 import {SanitaryApplicationsPanel} from './depth-operations.jsx';
 import {ProfessionalReproductionPanel,UserAdministrationPanel} from './pro-management.jsx';
 import {FieldMobileWorkspace} from './field-mobile.jsx';
+import {FinanceAdminWorkspace} from './finance-admin.jsx';
 import {Icon} from './icons.jsx';
 import './styles.css';
 
@@ -144,7 +145,7 @@ function App(){
   function surfaceResult(result,{screen=screenId,name=action}={}){
     const downloaded=downloadActionResult(result);
     if(downloaded){setActionResult(downloaded);return;}
-    const shouldShow=(screen==='data'&&name==='validateImport')||(screen==='iot'&&['testDevice','startDevice','stopDevice','simulateRfid','simulateWeight'].includes(name));
+    const shouldShow=(screen==='data'&&name==='validateImport')||(screen==='iot'&&['testDevice','startDevice','stopDevice','simulateRfid','simulateWeight'].includes(name))||(screen==='finance'&&['importStatement','importInvoiceXml'].includes(name));
     if(shouldShow&&result!=null)setActionResult(result);
   }
 
@@ -196,6 +197,7 @@ function App(){
       {screenId==='finance'&&<section className="panel" data-testid="finance-lot-selector"><div className="panel-heading"><div><span className="eyebrow">Resultado por lote</span><h2>Escolha o lote analisado</h2><p>Os indicadores econômicos abaixo são recalculados para o lote selecionado.</p></div></div><div className="form-grid"><label><span>Lote</span><select value={financeLotId} onChange={e=>setFinanceLotId(e.target.value)}><option value="">Selecione um lote</option>{(references.lots??[]).map(lot=><option key={lot.id} value={lot.id}>{lot.name??lot.id}</option>)}</select></label></div></section>}
       {screenId==='finance'&&<FinanceMetrics metrics={data?.metrics}/>} 
       {screenId==='finance'&&<FinanceDecisionPanel insights={depthInsights}/>} 
+      {screenId==='finance'&&<FinanceAdminWorkspace data={data} onRun={async(name,input)=>{try{const result=await runAction('finance',name,input);surfaceResult(result,{screen:'finance',name});await load('finance');setNotice({tone:'success',text:name==='importInvoiceXml'?'XML lido localmente. Revise a sugestão antes de criar o título.':'Financeiro administrativo atualizado.'});return result}catch(error){setNotice({tone:'error',text:error.message});throw error}}}/>} 
       {screenId==='reproduction'&&<ReproductionSummary records={rows} metrics={data?.metrics}/>} 
       {screenId==='reproduction'&&<ReproductionDecisionPanel insights={depthInsights}/>} 
       {screenId==='reproduction'&&reproductionAdminState&&<ProfessionalReproductionPanel state={reproductionAdminState} animals={reproductionFemales} onAction={runReproductionAdmin}/>} 

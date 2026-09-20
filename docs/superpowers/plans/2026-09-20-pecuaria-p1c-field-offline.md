@@ -19,6 +19,7 @@
 - Snapshot recebido nunca sobrescreve entidade tocada por operação local pendente/conflitada.
 - P1A e P1B já devem estar na mesma branch antes da execução deste plano.
 - A superfície final passa a **17 telas / 62 ações / 17 RPCs**; não criar RPC novo para quick operations.
+- `FIELD_SYNC_VERSION` permanece 1 porque a expansão é aditiva e o envelope/estrutura criptografada existente continua compatível; isso é protegido por teste de pacote legado.
 
 ## Review Focus
 
@@ -42,14 +43,18 @@
 
 ```js
 createBirthRecords({id,tag,farmUnitId,birthDate,sex,damId,sireId,lotId,breedId,categoryId,rfid,notes})
-// -> {animal,reproductionEvent}
+// -> {
+//   animal,
+//   birthEvent:{id:`${id}:birth`,kind:'birth',type:'birth',animalId:id,relatedAnimalId:damId,occurredAt:birthDate,metadata:{sireId,notes}}
+// }
 ```
 
-- [ ] Write RED unit tests validating required `id/tag/farmUnitId/birthDate/sex`, optional parents/lot/RFID and a deterministic reproduction event id `${id}:birth` (or another fixed documented suffix).
-- [ ] Write RED integration test against real persistence: valid birth saves calf + reproduction/lifecycle event; invalid dam/lot or duplicate animal id leaves neither side partially written.
-- [ ] Implement pure `createBirthRecords`; use `createAnimal` for the calf and a birth lifecycle/reproduction representation consistent with current domain. If `recordReproductionEvent` cannot represent birth itself, save a dedicated `kind:'birth'` event rather than widening reproductive semantics silently.
+- [ ] Write RED unit tests validating required `id/tag/farmUnitId/birthDate/sex`, optional parents/lot/RFID and the exact deterministic event id `${id}:birth`.
+- [ ] Write RED integration test against real persistence: valid birth saves calf + `kind:'birth'` event; invalid dam/sire/lot or duplicate animal id leaves neither side partially written.
+- [ ] Implement pure `createBirthRecords`; use `createAnimal` for the calf and build the exact dedicated birth event above. Do not overload `recordReproductionEvent` or invent another birth representation.
 - [ ] Add `animals.registerBirth` in presentation. Validate referenced dam/sire/lot before writes and wrap both writes in `persistence.transaction`.
 - [ ] Audit once with action `cattle.animal.birth.register` and entityId equal to calf id; do not leak full notes/identifiers into audit metadata.
+- [ ] Extend Animal 360º timeline rendering so `kind:'birth'` is presented as nascimento instead of falling through to reprodução.
 - [ ] Run `node --test tests/birth-transaction.test.js` and verify PASS.
 - [ ] Commit: `feat: add atomic animal birth registration`.
 
@@ -102,31 +107,34 @@ pasture.score            -> pastures.recordAssessment
 **Snapshot collections:** `cattle.tasks`, `cattle.animals`, `cattle.lots`, `cattle.sanitary-protocols`, `cattle.inventory`, `cattle.events`, `cattle.traceability`, `cattle.pastures`, `cattle.pasture-occupancy`, `cattle.breeding-seasons`, `cattle.reproduction-genetics`, `cattle.reproduction-dose-stock`, `cattle.body-condition`, `cattle.pasture-assessments`, `cattle.pasture-rotation-plan`.
 
 - [ ] Write RED test proving a base export contains all collections after decryption/import into a paired field fixture, while the public bundle still exposes only ciphertext/metadata.
+- [ ] Add a backward-compatibility fixture representing a valid version-1 bundle whose snapshot contains only the original five collections; current import must still accept it.
 - [ ] Add conflict test: field has pending local body score/animal operation, base snapshot contains older same-entity data, import skips the touched entity and preserves pending local state.
-- [ ] Add expired-bundle test by producing/altering a package in a controlled way; invalid metadata must be rejected before `applySnapshot/applyOperations` performs writes.
+- [ ] Add expired-bundle test using a validly encrypted fixture with past `expiresAt`; rejection occurs before `applySnapshot/applyOperations` writes anything.
 - [ ] Add wrong-pairing/tamper test and assert collection record counts are unchanged after rejection.
-- [ ] Expand `SNAPSHOT_COLLECTIONS`; keep field role as the only role applying snapshot.
+- [ ] Expand `SNAPSHOT_COLLECTIONS`; keep field role as the only role applying snapshot and keep `FIELD_SYNC_VERSION=1`.
 - [ ] Make snapshot application compare permitted collection names strictly and skip malformed sections/records without accepting an arbitrary collection injection.
-- [ ] Preserve FIELD_SYNC_VERSION=1 only if old P0/P1 bundles remain readable. If any serialized contract must become incompatible, bump to 2 and add explicit version rejection/backward-read tests; do not bump speculatively.
 - [ ] Run `node --test tests/field-mobile-offline.test.js tests/field-sync-conflicts-p1c.test.js`.
 - [ ] Commit: `feat: expand secure field snapshot and conflict protection`.
 
 ---
 
-### Task 4: Integração end-to-end dos quick operations
+### Task 4: Integração end-to-end dos quick operations e permissão RFID
 
 **Files:**
 - Create: `tests/field-operations-p1c.test.js`
-- Modify: `runtime/backend.mjs` only if reference loading or deterministic context is required; do not create new RPC.
+- Modify: `src/security.js`
+- Modify: `tests/security-audit.test.js`
 
 - [ ] Build base/field fixtures like `tests/field-mobile-offline.test.js` with animals, lots, protocols, inventory, pasture, traceability, reproduction and IoT simulator state.
 - [ ] For each new quick kind: configure pair, import base snapshot, execute quick on field, export bundle, import on base, assert the canonical business record changed exactly once.
 - [ ] Replay the same field bundle and assert `applied=0`, operations become `skipped`, and record/event counts do not grow.
 - [ ] Test `animal.birth` rollback by making its destination invalid on base; receipt must become conflict and neither calf nor event may exist.
 - [ ] Test batch move/sanitary/reproduction with deterministic result ids. Replay must not duplicate child events or inventory consumption.
+- [ ] Add granular permission `iot:bind`. Map `iot.bindRfid` and `iot.unbindRfid` to `iot:bind`; grant it to `manager` and `field-operator`. Do not grant `iot:write` or `iot:read` to `field-operator`, so device administration remains unavailable while curral RFID association works.
+- [ ] Add security tests proving field operator can call only RFID bind/unbind through destination actions and cannot save/remove/start/stop IoT devices.
 - [ ] Test RFID binding through `iot.bindRfid` and traceability through existing presentation actions; do not bypass RBAC/action audit.
 - [ ] Verify returned field state pending/acknowledged/conflicts accurately follows receipts.
-- [ ] Run `node --test tests/field-operations-p1c.test.js` and existing field/IoT tests.
+- [ ] Run `node --test tests/field-operations-p1c.test.js tests/security-audit.test.js` and existing field/IoT tests.
 - [ ] Commit: `test: cover complete offline field operation round trips`.
 
 ---
@@ -142,8 +150,8 @@ pasture.score            -> pastures.recordAssessment
 
 **Required UI test ids:** `field-operation-switcher`, `field-quick-reproduction`, `field-quick-birth`, `field-quick-lifecycle`, `field-quick-rfid`, `field-quick-traceability`, `field-quick-batch`, `field-quick-pasture`, `field-quick-scores`, `field-animal360`.
 
-- [ ] Write RED source/UI tests for all sections and for offline Animal 360º fields: identity, lot, recent weight, body score, sanitary/reproduction history, traceability and pending task.
-- [ ] Expand backend `references` response only with data already locally available and needed by field forms. Do not add a network request or new RPC.
+- [ ] Write RED source/UI tests for all sections and for offline Animal 360º fields: identity, lot, recent weight, body score, sanitary/reproduction/birth history, traceability and pending task.
+- [ ] Expand backend `references` response with the local collections needed by field forms and offline Animal 360º. Do not add a network request or new RPC.
 - [ ] Refactor `FieldMobileWorkspace` from all-cards-at-once into a touch-first operation selector with one focused panel at a time; preserve current task/weight/move/sanitary features.
 - [ ] Add dedicated quick forms for reproduction, birth, lifecycle, RFID, traceability, batch, pasture and scores. Reuse large controls and existing `quick()` call.
 - [ ] Build Animal 360º from the local reference/snapshot payload only. No fetch-on-open and no JSON editing.
@@ -169,7 +177,7 @@ pasture.score            -> pastures.recordAssessment
 - [ ] Keep quick kinds out of the top-level action contract unless they map to a presentation action; the contract counts actions, not aliases in field sync.
 - [ ] Update product/API contract with only `animals.registerBirth`; RPC list remains exactly 17.
 - [ ] Recompute baseline SHA from canonical contract tooling, not manually.
-- [ ] E2E: log in, navigate tasks/field workspace, assert operation selector and Animal 360º, exercise representative birth/reproduction/pasture/score forms, and ensure no raw JSON control.
+- [ ] E2E: log in, navigate tasks/field workspace, assert operation selector and Animal 360º, exercise representative birth/reproduction/pasture/score/RFID forms, and ensure no raw JSON control.
 - [ ] Run `node --test tests/product-actions.test.js tests/web-action-config.test.js`, `npm run qa:contracts`, and `npx playwright test tests/e2e/p1c-field-offline.spec.mjs`.
 - [ ] Commit: `feat: contract and verify complete offline field surface`.
 
@@ -186,6 +194,6 @@ pasture.score            -> pastures.recordAssessment
 - [ ] `npm run qa:product`
 - [ ] `npm run qa:web`
 - [ ] Confirm exact surface: 17 screens, 62 actions, 17 RPCs.
-- [ ] Confirm existing IoT P0/P1 tests still pass.
+- [ ] Confirm existing IoT P0/P1 tests still pass after granular `iot:bind` permission.
 - [ ] Confirm the field bundle contains no session token/password and no binary photo payload.
 - [ ] Commit evidence/doc-only corrections as `test: certify P1C complete field offline workflow`.

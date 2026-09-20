@@ -4,6 +4,8 @@ import {createCattleTrade} from '../index.js';
 import {recordAnimalLifecycle} from '../operations.js';
 import {createCattleTradeEntry} from '../finance.js';
 
+const timestamp=value=>{const parsed=Date.parse(value??'');return Number.isFinite(parsed)?parsed:null};
+
 export function createSellAnimalsUseCase({persistence,audit}={}){
   if(typeof persistence?.transaction!=='function')throw new TypeError('Transactional persistence is required.');
   if(typeof audit?.append!=='function')throw new TypeError('Audit service is required.');
@@ -24,6 +26,22 @@ export function createSellAnimalsUseCase({persistence,audit}={}){
         if(!current)throw new Error(`Animal not found: ${animalId}.`);
         if(current.payload.status!=='active')throw new Error(`Animal is not active: ${animalId}.`);
         currentAnimals.push(current);
+      }
+
+      const saleAt=timestamp(trade.occurredAt);
+      if(saleAt!=null){
+        const sanitaryEvents=(await repos.events.list())
+          .map(record=>record.payload)
+          .filter(event=>event?.kind==='sanitary'&&trade.animalIds.includes(event?.animalId));
+        for(const event of sanitaryEvents){
+          const appliedAt=timestamp(event.occurredAt);
+          const withdrawalUntil=timestamp(event.withdrawalUntil);
+          if(withdrawalUntil==null)continue;
+          if(appliedAt!=null&&appliedAt>saleAt)continue;
+          if(withdrawalUntil>saleAt){
+            throw new Error(`Animal has an active sanitary withdrawal period: ${event.animalId} until ${event.withdrawalUntil}.`);
+          }
+        }
       }
 
       const savedTrade=await repos.trades.save(trade,{expectedVersion:0});

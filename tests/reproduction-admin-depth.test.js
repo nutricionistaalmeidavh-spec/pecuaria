@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {openProductPersistence} from '../shared/packages/vertical-persistence/src/index.js';
 import {createCattlePresentation} from '../src/presentation.js';
+import {createReproductionManagementService} from '../src/reproduction-management.js';
 
 async function fixture(){
   const dir=await mkdtemp(join(tmpdir(),'pecuaria-repro-admin-'));
@@ -18,9 +19,7 @@ test('professional reproduction manages genetics, semen doses, breeding seasons 
   const f=await fixture();
   try{
     await f.db.putRecord('cattle.animals','cow-1',{id:'cow-1',tag:'M001',sex:'female',status:'active',lotId:null,weights:[],movements:[],lifecycle:[]},{expectedVersion:0});
-    const presentation=createCattlePresentation({persistence:f.db});
-    const service=presentation.services.reproductionManagement;
-    assert.ok(service,'reproduction management service must be exposed');
+    const service=createReproductionManagementService(f.db);
 
     await service.saveGenetics({id:'gen-bull',type:'bull',name:'Touro Alpha',registry:'RGD-1',breed:'Nelore',active:true},{actorId:'admin'});
     await service.saveGenetics({id:'gen-semen',type:'semen',name:'Sêmen Alpha',registry:'RGD-1',breed:'Nelore',active:true},{actorId:'admin'});
@@ -31,6 +30,7 @@ test('professional reproduction manages genetics, semen doses, breeding seasons 
     assert.equal(recorded.payload.metadata.geneticsId,'gen-semen');
     assert.equal(recorded.payload.metadata.breedingSeasonId,'season-26');
     assert.equal((await f.db.getRecord('cattle.reproduction-dose-stock','dose-1')).payload.quantityDoses,1);
+    await assert.rejects(()=>service.adjustDoseStock({id:'dose-1',delta:-2},{actorId:'admin'}),/Insufficient semen doses/);
 
     await f.db.putRecord('cattle.events','check-1',{id:'check-1',kind:'reproduction',animalId:'cow-1',relatedAnimalId:null,type:'pregnancy-check',occurredAt:'2026-11-10T12:00:00.000Z',metadata:{result:'positive'}},{expectedVersion:0});
     const state=await service.load();
@@ -66,7 +66,9 @@ test('local user administration creates and edits users, exposes profile matrix 
 
     await security.resetUserPassword({...auth,id:'user-1',password:'ijklmnop'});
     await assert.rejects(()=>security.authenticate({username:'campo',password:'abcdefgh'}),/invalid credentials/);
-    assert.ok((await security.authenticate({username:'campo',password:'ijklmnop'})).session.id);
+    const financeSession=await security.authenticate({username:'campo',password:'ijklmnop'});
+    assert.ok(financeSession.session.id);
+    await assert.rejects(()=>security.listUsers(authArgs(financeSession)),/permission denied: security:admin/);
 
     await assert.rejects(()=>security.updateUser({...auth,id:'admin-1',changes:{active:false}}),/last active admin/i);
     const audit=await security.listAudit({...auth,limit:100});

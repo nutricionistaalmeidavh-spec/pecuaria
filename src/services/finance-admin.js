@@ -1,5 +1,6 @@
 import {createEntityRepository} from '../../shared/packages/vertical-persistence/src/repository.js';
 import {createFinanceAccount,createFinanceCategory,createFinancialTitle,createSettlement,deriveTitleState,buildCashProjection} from '../finance-admin.js';
+import {parseStatementCsv,parseInvoiceXml} from './finance-import.js';
 
 export const FINANCE_ADMIN_COLLECTIONS=Object.freeze({
   accounts:'cattle.finance-accounts',
@@ -91,6 +92,53 @@ export function createFinanceAdminService(persistence,{audit=null}={}){
     return result;
   }
 
+  async function importStatement({sourceName,text}={},context={}){
+    const parsed=parseStatementCsv(text,{sourceName});
+    const result=await runTransaction(persistence,async store=>{
+      const scoped=repositories(store);let imported=0,skipped=0;
+      for(const row of parsed.rows){
+        const existing=await scoped.reconciliations.get(row.id);
+        if(existing){skipped+=1;continue;}
+        await scoped.reconciliations.save({id:row.id,importId:parsed.fileId,kind:'statement-line',occurredAt:row.occurredAt,description:row.description,amountMinor:row.amountMinor,status:'unreconciled',settlementId:null,adjustmentTitleId:null,adjustmentSettlementId:null},{expectedVersion:0});
+        imported+=1;
+      }
+      const existingImport=await scoped.imports.get(parsed.fileId);
+      if(!existingImport)await scoped.imports.save({id:parsed.fileId,kind:'statement',sourceName:parsed.sourceName,rowCount:parsed.rows.length,importedAt:new Date().toISOString()},{expectedVersion:0});
+      return{fileId:parsed.fileId,rowCount:parsed.rows.length,imported,skipped};
+    });
+    await appendAudit(audit,{actorId:context.actorId,action:'cattle.finance.statement.import',entityType:'finance-import',entityId:parsed.fileId,metadata:{rowCount:parsed.rows.length,imported:result.imported,skipped:result.skipped}});
+    return Object.freeze(result);
+  }
+
+  async function reconcileStatement({lineId,settlementId=null,adjustment=null,operationId=null}={},context={}){
+    const result=await runTransaction(persistence,async store=>{
+      const scoped=repositories(store),lineRecord=required(await scoped.reconciliations.get(lineId),'Statement line'),line=lineRecord.payload;
+      if(line.status==='reconciled')throw new Error('Statement line is already reconciled.');
+      let resolvedSettlementId=settlementId,adjustmentTitleId=null,adjustmentSettlementId=null;
+      if(settlementId)required(await scoped.settlements.get(settlementId),'Finance settlement');
+      else if(adjustment){
+        const direction=line.amountMinor>=0?'receivable':'payable',amountMinor=Math.abs(line.amountMinor),title=createFinancialTitle({id:adjustment.titleId,direction,description:adjustment.description??line.description,originalAmountMinor:amountMinor,issuedAt:line.occurredAt,dueAt:line.occurredAt,categoryId:adjustment.categoryId??null,accountId:adjustment.accountId??null,notes:adjustment.notes??'Ajuste explícito de conciliação'}),settlement=createSettlement({id:adjustment.settlementId,operationId:operationId??adjustment.operationId,titleId:title.id,amountMinor,occurredAt:line.occurredAt,accountId:adjustment.accountId??null,method:'reconciliation-adjustment',notes:adjustment.notes??null});
+        if(await scoped.titles.get(title.id))throw new Error('Adjustment title already exists.');
+        if(rows(await scoped.settlements.list()).some(item=>item.operationId===settlement.operationId))throw new Error('Adjustment operation already exists.');
+        await scoped.titles.save(title,{expectedVersion:0});await scoped.settlements.save(settlement,{expectedVersion:0});resolvedSettlementId=settlement.id;adjustmentTitleId=title.id;adjustmentSettlementId=settlement.id;
+      }else throw new Error('Reconciliation requires an existing settlement or explicit adjustment.');
+      const saved=await scoped.reconciliations.save({...line,status:'reconciled',settlementId:resolvedSettlementId,adjustmentTitleId,adjustmentSettlementId,reconciledAt:new Date().toISOString()},{expectedVersion:lineRecord.version});
+      return entityOf(saved);
+    });
+    await appendAudit(audit,{actorId:context.actorId,action:'cattle.finance.statement.reconcile',entityType:'finance-reconciliation',entityId:lineId,metadata:{settlementId:result.settlementId}});
+    return result;
+  }
+
+  async function importInvoiceXml({sourceName,xml}={},context={}){
+    const parsed=parseInvoiceXml(xml,{sourceName});
+    await runTransaction(persistence,async store=>{
+      const scoped=repositories(store),existing=await scoped.imports.get(parsed.fileId);
+      if(!existing)await scoped.imports.save({id:parsed.fileId,kind:'invoice-xml',sourceName:parsed.sourceName,documentNumber:parsed.documentNumber,importedAt:new Date().toISOString()},{expectedVersion:0});
+    });
+    await appendAudit(audit,{actorId:context.actorId,action:'cattle.finance.invoice.inspect',entityType:'finance-import',entityId:parsed.fileId,metadata:{documentNumber:parsed.documentNumber,totalAmountMinor:parsed.totalAmountMinor}});
+    return parsed;
+  }
+
   async function snapshot({asOf=new Date().toISOString()}={}){
     const [accountRecords,titleRecords,settlementRecords,categoryRecords,reconciliationRecords,importRecords]=await Promise.all([
       repos.accounts.list(),repos.titles.list(),repos.settlements.list(),repos.categories.list(),repos.reconciliations.list(),repos.imports.list()
@@ -101,16 +149,8 @@ export function createFinanceAdminService(persistence,{audit=null}={}){
     const open=enrichedTitles.filter(title=>!['settled','cancelled'].includes(title.status));
     const overdue=open.filter(title=>Date.parse(title.dueAt)<now).sort((a,b)=>String(a.dueAt).localeCompare(String(b.dueAt)));
     const upcoming=open.filter(title=>Date.parse(title.dueAt)>=now).sort((a,b)=>String(a.dueAt).localeCompare(String(b.dueAt)));
-    return Object.freeze({
-      accounts,categories,titles:enrichedTitles,settlements,
-      reconciliations:rows(reconciliationRecords),imports:rows(importRecords),overdue,upcoming,
-      projection:buildCashProjection({titles,settlements,accounts,asOf})
-    });
+    return Object.freeze({accounts,categories,titles:enrichedTitles,settlements,reconciliations:rows(reconciliationRecords),imports:rows(importRecords),overdue,upcoming,projection:buildCashProjection({titles,settlements,accounts,asOf})});
   }
 
-  const unavailable=name=>async()=>{throw new Error(`${name} is not implemented yet.`)};
-  return Object.freeze({
-    snapshot,saveAccount,saveCategory,saveTitle,cancelTitle,settleTitle,reverseSettlement,
-    importStatement:unavailable('Statement import'),reconcileStatement:unavailable('Statement reconciliation'),importInvoiceXml:unavailable('Invoice XML import')
-  });
+  return Object.freeze({snapshot,saveAccount,saveCategory,saveTitle,cancelTitle,settleTitle,reverseSettlement,importStatement,reconcileStatement,importInvoiceXml});
 }

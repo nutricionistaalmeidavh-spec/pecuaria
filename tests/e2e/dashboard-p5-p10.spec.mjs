@@ -45,12 +45,15 @@ test('P9 mobile navigation is a drawer and operational tables become readable ca
   await expect(firstCell).toHaveAttribute('data-label');
 });
 
-test('P10 overview has no horizontal overflow at supported viewports',async({page})=>{
+test('P10 overview remains usable without horizontal overflow at supported viewports',async({page},testInfo)=>{
   for(const viewport of [{width:1440,height:900},{width:1024,height:768},{width:768,height:1024},{width:390,height:844}]){
     await page.setViewportSize(viewport);
     await login(page);
+    await expect(page.getByTestId('dashboard-overview')).toBeVisible();
+    await expect(page.getByTestId('primary-kpis')).toBeVisible();
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth);
     expect(overflow,`${viewport.width}px should not overflow horizontally`).toBe(false);
-    await page.evaluate(()=>localStorage.clear());
+    const screenshot=await page.screenshot({fullPage:true});
+    await testInfo.attach(`overview-${viewport.width}x${viewport.height}`,{body:screenshot,contentType:'image/png'});
   }
 });

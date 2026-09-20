@@ -1,5 +1,6 @@
 import {readFile,writeFile} from 'node:fs/promises';
 
+// Deterministic one-shot patch for the P1A finance workspace integration.
 const path='web/main.jsx';
 let source=await readFile(path,'utf8');
 const replace=(needle,replacement,label)=>{if(!source.includes(needle))throw new Error(`Missing P1A UI anchor: ${label}`);source=source.replace(needle,replacement)};

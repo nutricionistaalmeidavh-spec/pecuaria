@@ -91,6 +91,21 @@ test('sanitary application rejects insufficient stock without partial writes',as
   }finally{await f.cleanup()}
 });
 
+test('sale is blocked while an animal has an active sanitary withdrawal period',async()=>{
+  const f=await fixture();
+  try{
+    await f.repos.lots.save(domain.createCattleLot({id:'l1',name:'Lote 1',farmUnitId:'farm-1'}),{expectedVersion:0});
+    await f.repos.animals.save(domain.createAnimal({id:'a1',tag:'A-1',farmUnitId:'farm-1',lotId:'l1'}),{expectedVersion:0});
+    await f.p1.inventory.save(domain.createInventoryItem({id:'med-1',name:'Medicamento',kind:'medicine',unit:'ml',quantity:10,costMinor:50}),{expectedVersion:0});
+    await f.repos.sanitaryProtocols.save(createSanitaryProtocol({id:'prot-1',name:'Sanitário',productItemId:'med-1',dose:2,unit:'ml',withdrawalDays:10}),{expectedVersion:0});
+    const presentation=createCattlePresentation({persistence:f.db,recovery:null});
+    await presentation.action('sanitary','record',{id:'san-1',animalId:'a1',protocolId:'prot-1',occurredAt:'2026-09-20T12:00:00Z'});
+    await assert.rejects(()=>presentation.action('trades','create',{id:'sale-blocked',type:'sale',partyId:'buyer-1',animalIds:['a1'],totalAmountMinor:100000,occurredAt:'2026-09-25T12:00:00Z'}),/withdrawal|carência/i);
+    assert.equal(await f.repos.trades.get('sale-blocked'),null);
+    assert.equal((await f.repos.animals.get('a1')).payload.status,'active');
+  }finally{await f.cleanup()}
+});
+
 test('reproduction supports pregnancy loss and derives breeding KPIs',()=>{
   assert.equal(typeof domain.reproductionMetrics,'function');
   const events=[domain.recordReproductionEvent({id:'s1',animalId:'a1',type:'service',occurredAt:'2026-01-01'}),domain.recordReproductionEvent({id:'s2',animalId:'a2',type:'service',occurredAt:'2026-01-01'}),domain.recordReproductionEvent({id:'p1',animalId:'a1',type:'pregnancy-check',occurredAt:'2026-02-01',metadata:{result:'positive'}}),domain.recordReproductionEvent({id:'p2',animalId:'a2',type:'pregnancy-check',occurredAt:'2026-02-01',metadata:{result:'negative'}}),domain.recordReproductionEvent({id:'l1',animalId:'a1',type:'pregnancy-loss',occurredAt:'2026-03-01'})];

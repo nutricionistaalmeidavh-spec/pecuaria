@@ -32,7 +32,7 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
   const search=createLocalSearchService(persistence);
   const alerts=createCattleAlertsService({persistence,recovery});
   const transfer=createCattleTransferService(persistence);
-  transfer.collections=Object.freeze(['cattle.lots','cattle.animals','cattle.breeds','cattle.categories','cattle.sanitary-protocols','cattle.events','cattle.trades','cattle.finance']);
+  
   const reporting=createCattleReportingService(persistence);
   const dashboard=createCattleDashboardService({persistence,alerts});
   const sellAnimals=createSellAnimalsUseCase({persistence,audit});
@@ -62,7 +62,7 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
         return documents.issue({id,type,format,content});
       })
     }},
-    data:{kind:'data-tools',async load(){const [breeds,categories]=await Promise.all([repos.breeds.list(),repos.categories.list()]);return{breeds,categories,transferableCollections:transfer.collections};},actions:{
+    data:{kind:'data-tools',async load(){const [breeds,categories]=await Promise.all([repos.breeds.list(),repos.categories.list()]);return{rows:[...breeds,...categories]};},actions:{
       saveBreed:audited('cattle.breed.save','breed',(input,options)=>repos.breeds.save(createCattleBreed(input),options??{})),
       saveCategory:audited('cattle.category.save','category',(input,options)=>repos.categories.save(createCattleCategory(input),options??{})),
       exportCollection:({collection})=>transfer.exportCollection(collection),

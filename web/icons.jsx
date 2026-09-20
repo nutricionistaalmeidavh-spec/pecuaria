@@ -16,7 +16,8 @@ const paths={
   bell:<><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,
   search:<><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
   alert:<><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5M12 18h.01"/></>,
-  sprout:<><path d="M12 22V12"/><path d="M7 7c3 0 5 2 5 5-3 0-5-2-5-5ZM17 5c-3 0-5 2-5 5 3 0 5-2 5-5Z"/></>
+  sprout:<><path d="M12 22V12"/><path d="M7 7c3 0 5 2 5 5-3 0-5-2-5-5ZM17 5c-3 0-5 2-5 5 3 0 5-2 5-5Z"/></>,
+  menu:<><path d="M4 6h16M4 12h16M4 18h16"/></>
 };
 
 export function Icon({name,size=20,className='',title}){

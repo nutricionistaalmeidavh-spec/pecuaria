@@ -28,17 +28,19 @@ export function validateDashboardLayout(layout){
 function buildWeightPerformance(active){
   const latestWeights=[];
   const gains=[];
+  const dailyGains=[];
   for(const animal of active){
     const history=(animal?.weights??[])
       .filter(item=>finite(item?.weightKg)&&timestamp(item?.measuredAt)!=null)
       .map(item=>({animalId:animal.id,tag:animal.tag??'',name:animal.name??'',measuredAt:item.measuredAt,weightKg:Number(item.weightKg)}))
       .sort((a,b)=>timestamp(a.measuredAt)-timestamp(b.measuredAt));
     latestWeights.push(...history);
-    if(history.length>=2)gains.push(history.at(-1).weightKg-history[0].weightKg);
+    if(history.length>=2){const gain=history.at(-1).weightKg-history[0].weightKg;const days=Math.max(1,(timestamp(history.at(-1).measuredAt)-timestamp(history[0].measuredAt))/86400000);gains.push(gain);dailyGains.push(gain/days);}
   }
   const ascending=latestWeights.sort((a,b)=>timestamp(a.measuredAt)-timestamp(b.measuredAt));
   return Object.freeze({
     averageGainKg:average(gains),
+    averageDailyGainKg:average(dailyGains),
     latestWeights:Object.freeze([...ascending].sort((a,b)=>timestamp(b.measuredAt)-timestamp(a.measuredAt)).slice(0,8).map(Object.freeze)),
     series:Object.freeze(ascending.slice(-12).map(Object.freeze))
   });

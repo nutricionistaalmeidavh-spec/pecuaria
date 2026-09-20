@@ -16,7 +16,7 @@ export function createCattleAlertsService({persistence,recovery=null,now=()=>new
         if(!Number.isFinite(due))continue;
         const days=(due-currentMs)/DAY;
         if(days<0){
-          alerts.push(Object.freeze({id:`sanitary-overdue:${record.id}`,kind:'sanitary-overdue',severity:'warning',entityType:'sanitary-event',entityId:record.id,animalId:event.animalId??null,dueAt:iso(event.nextDueAt)}));
+          alerts.push(Object.freeze({id:`sanitary-overdue:${record.id}`,kind:'sanitary-overdue',severity:'warning',entityType:'sanitary-event',entityId:record.id,animalId:event.animalId??null,dueAt:iso(event.nextDueAt),target:'sanitary',targetId:event.animalId??record.id}));
         }else if(days<=sanitaryUpcomingDays){
           alerts.push(Object.freeze({id:`sanitary-upcoming:${record.id}`,kind:'sanitary-upcoming',severity:'info',entityType:'sanitary-event',entityId:record.id,animalId:event.animalId??null,dueAt:iso(event.nextDueAt)}));
         }
@@ -28,7 +28,7 @@ export function createCattleAlertsService({persistence,recovery=null,now=()=>new
         if(animal?.status!=='active'||!(animal.weights?.length))continue;
         const last=animal.weights.at(-1),measured=Date.parse(last?.measuredAt);
         if(Number.isFinite(measured)&&currentMs-measured>staleWeightDays*DAY){
-          alerts.push(Object.freeze({id:`weight-stale:${record.id}`,kind:'weight-stale',severity:'info',entityType:'animal',entityId:record.id,lastMeasuredAt:new Date(measured).toISOString()}));
+          alerts.push(Object.freeze({id:`weight-stale:${record.id}`,kind:'weight-stale',severity:'info',entityType:'animal',entityId:record.id,lastMeasuredAt:new Date(measured).toISOString(),target:'weights',targetId:record.id}));
         }
       }
 
@@ -36,7 +36,7 @@ export function createCattleAlertsService({persistence,recovery=null,now=()=>new
         const backups=(await recovery.listBackups()).filter(item=>item.verified!==false);
         const latest=backups.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))[0];
         if(!latest||currentMs-Date.parse(latest.createdAt)>backupStaleDays*DAY){
-          alerts.push(Object.freeze({id:'backup-stale',kind:'backup-stale',severity:'warning',entityType:'backup',entityId:latest?.id??null,lastBackupAt:latest?.createdAt??null}));
+          alerts.push(Object.freeze({id:'backup-stale',kind:'backup-stale',severity:'warning',entityType:'backup',entityId:latest?.id??null,lastBackupAt:latest?.createdAt??null,target:'settings',targetId:latest?.id??null}));
         }
       }
       return Object.freeze(alerts.sort((a,b)=>a.id.localeCompare(b.id)));

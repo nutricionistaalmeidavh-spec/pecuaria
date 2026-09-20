@@ -27,7 +27,7 @@ export async function createStandaloneHost({dataDir,backupDir=join(dataDir,'back
   const secretStore=await createLocalSecretStore({directory:join(dataDir,'iot')});
   const drivers=createNodeIoTDrivers();
   const presentation=createCattlePresentation({persistence,recovery,iotRuntime:{drivers,secretStore}});
-  const backend=createRpcBackend({presentation});
+  const backend=createRpcBackend({presentation,persistence});
   const iotStartup=Promise.resolve().then(()=>presentation.services.iot.startEnabled()).catch(()=>[]);
   return{
     persistence,recovery,presentation,backend,

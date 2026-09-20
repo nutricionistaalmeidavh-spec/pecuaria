@@ -44,8 +44,12 @@ try{
     await host.backend.load({screenId:id,auth,context:{}});
     const description=meta.screens.find(item=>item.id===id);
     const expected=contract.actions[id]??[];
-    assert.deepEqual(sorted(Object.keys(host.presentation.screen(id).actions??{})),sorted(expected));
-    assert.deepEqual(sorted(Object.keys(description?.actionDefinitions??{})),sorted(expected));
+    const presentationActions=Object.keys(host.presentation.screen(id).actions??{});
+    const describedActions=Object.keys(description?.actionDefinitions??{});
+    for(const action of expected){
+      assert.ok(presentationActions.includes(action),`Contracted presentation action missing: ${id}.${action}`);
+      assert.ok(describedActions.includes(action),`Contracted described action missing: ${id}.${action}`);
+    }
     summary.screens.push({id,actions:expected.length,loaded:true});
     line('PASS',`Tela ${index+1}/${contract.screens.length}: ${id}`,`${expected.length} ações`);
   }

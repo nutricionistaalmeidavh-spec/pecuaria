@@ -15,7 +15,8 @@
 - Core obrigatório R$ 0/mês, local-first e sem SaaS obrigatório.
 - Não alterar a semântica de `cattle.finance`; ela continua sendo o ledger econômico produtivo atual.
 - Valores monetários persistidos são inteiros em centavos.
-- `openAmountMinor` e status de título são derivados, nunca campos livremente graváveis pela UI.
+- `openAmountMinor`, status de título e saldo de conta são derivados, nunca campos livremente graváveis pela UI.
+- Não existe `openingBalanceMinor` editável. Um saldo inicial real deve ser representado por ajuste conciliatório explícito e auditável.
 - Baixas e estornos são imutáveis; correção ocorre por novo movimento inverso.
 - CSV/XML são processados localmente. Nenhuma chamada SEFAZ, Open Finance ou Pluggy.
 - As 17 telas e os 17 RPCs permanecem; este bloco adiciona 9 ações à tela `finance`.
@@ -24,7 +25,7 @@
 
 1. Retry com o mesmo `operationId` não pode duplicar baixa ou estorno.
 2. Overpayment, baixa em título cancelado e segundo estorno da mesma baixa devem falhar sem escrita parcial.
-3. Status e valor aberto devem sempre ser derivados do histórico líquido de movimentos.
+3. Status, valor aberto e saldo devem sempre ser derivados do histórico líquido de movimentos.
 4. CSV/XML inválido ou reimportado não pode criar dados parciais/duplicados.
 5. RBAC deve impedir que `field-operator`/`viewer` executem mutações financeiras administrativas.
 
@@ -40,21 +41,21 @@
 **Interfaces:**
 
 ```js
-createFinanceAccount({id,name,kind='cash',openingBalanceMinor=0,active=true})
+createFinanceAccount({id,name,kind='cash',active=true})
 createFinanceCategory({id,name,direction='both',active=true})
-createFinancialTitle({id,direction,description,originalAmountMinor,issuedAt,dueAt,categoryId,accountId,partyId,lotId,tradeId,documentRef,notes})
-createSettlement({id,operationId,titleId,amountMinor,occurredAt,accountId,method,notes,reversesSettlementId})
+createFinancialTitle({id,direction,description,originalAmountMinor,issuedAt,dueAt,categoryId,accountId,partyId,lotId,tradeId,documentRef,notes,source='manual'})
+createSettlement({id,operationId,titleId,amountMinor,occurredAt,accountId,method,notes,reversesSettlementId=null})
 deriveTitleState(title,settlements)
 buildCashProjection({titles,settlements,accounts,asOf})
 ```
 
-- [ ] Write failing tests asserting positive safe-integer money, valid `payable|receivable`, valid dates, optional references normalized to `null`, and that callers cannot inject `openAmountMinor` or `status`.
+- [ ] Write failing tests asserting positive safe-integer money, valid `payable|receivable`, valid dates, optional references normalized to `null`, and that callers cannot inject `openAmountMinor`, `status` or account balance.
 - [ ] Add tests for `deriveTitleState`: no settlement => `open`, partial => `partial`, exact total => `settled`, cancelled title => `cancelled`, reversal reopens the correct amount.
 - [ ] Add tests for projection with realized inflow/outflow and 7/30/90-day buckets; missing account must remain unallocated rather than disappear.
 - [ ] Run `node --test tests/finance-admin.test.js` and verify RED because `src/finance-admin.js` does not exist.
 - [ ] Implement the constructors as pure functions. Reject non-safe-integer money and non-positive settlement amount. Freeze returned records.
 - [ ] Implement `deriveTitleState` by netting normal settlements against reversal records; never trust stored status/open amount.
-- [ ] Implement `buildCashProjection` with explicit `null`/empty results when data is unavailable rather than synthetic zeroes where zero would imply observed data.
+- [ ] Implement `buildCashProjection` from settlements/reversals only. An account with no observed movement has derived balance 0 with an explicit `movementCount:0`; no editable opening balance exists.
 - [ ] Export the new module from `src/index.js`.
 - [ ] Run `node --test tests/finance-admin.test.js` and verify PASS.
 - [ ] Commit: `feat: add administrative finance domain model`.
@@ -114,6 +115,7 @@ parseInvoiceXml(xml,{sourceName}) -> {documentNumber,issuedAt,totalAmountMinor,p
 - [ ] Implement CSV parsing without a network/package dependency. Reject ambiguous or malformed lines rather than guessing monetary values.
 - [ ] Implement a narrow NF-e XML parser sufficient for known tags. Reject `<!DOCTYPE`/`<!ENTITY`; do not resolve external entities and do not transmit anything.
 - [ ] `importStatement` persists import metadata and unseen normalized rows transactionally; repeated file/row ids are skipped, not duplicated.
+- [ ] `reconcileStatement({rowId,settlementId})` links one imported row to one existing settlement exactly once. `reconcileStatement({rowId,mode:'adjustment',accountId,operationId})` creates, in one transaction, a synthetic title with `source:'reconciliation-adjustment'` and a matching settlement whose direction comes from the imported row sign; ids are deterministic from `rowId`. This is the only way to represent an opening/manual bank adjustment without editable account balance.
 - [ ] `importInvoiceXml` returns a proposal only. It must not create `cattle.finance-titles`; title creation remains a separate explicit `saveTitle` action after user confirmation.
 - [ ] Run `node --test tests/finance-import.test.js tests/finance-admin-service.test.js` and verify PASS.
 - [ ] Commit: `feat: add local statement and invoice import parsers`.
@@ -161,7 +163,7 @@ parseInvoiceXml(xml,{sourceName}) -> {documentNumber,issuedAt,totalAmountMinor,p
 
 - [ ] Write source/UI tests first asserting all required surfaces, payable/receivable filters, overdue state, settlement/reversal controls and no raw JSON editor. Verify RED.
 - [ ] Build `FinanceAdminWorkspace` from backend `data.admin`. Keep existing `FinanceDecisionPanel` visible so productive DRE/lot economics are not displaced.
-- [ ] Render account balances, realized entry/exit, due/overdue totals and 7/30/90 forecast. Use `—/Sem dados` for absent observations rather than fabricated zeroes.
+- [ ] Render account balances, realized entry/exit, due/overdue totals and 7/30/90 forecast. Use `—/Sem dados` for absent forecast observations while account balance explicitly displays 0 when there are zero recorded movements.
 - [ ] Implement title list with status/due/category/party/lot and action affordances for settle/cancel/reverse based on state.
 - [ ] Implement CSV/XML file reads in the browser and send file text/content to the typed presentation actions; do not add browser network calls.
 - [ ] Add responsive styles and import `finance-admin.css` from `web/styles.css`.

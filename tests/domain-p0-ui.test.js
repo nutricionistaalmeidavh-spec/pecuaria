@@ -20,7 +20,8 @@ test('reproduction UI receives and renders derived management metrics',async()=>
 });
 
 test('trade workspace exposes calculated carcass settlement instead of hiding it in metadata',async()=>{
-  const source=await readFile(new URL('../src/presentation.js',import.meta.url),'utf8');
+  const source=await readFile(new URL('../web/components.jsx',import.meta.url),'utf8');
+  assert.match(source,/metadata\?\.settlement/);
   assert.match(source,/carcassArrobas/);
   assert.match(source,/carcassYieldPct/);
   assert.match(source,/grossMinor/);

@@ -41,10 +41,12 @@ export function createReproductionManagementService(persistence,{audit=null}={})
   }
 
   async function saveDoseStock(input,{actorId='system'}={}){
+    const id=text(input?.id,'Dose stock id');
     const genetics=await persistence.getRecord(GENETICS,text(input?.geneticsId,'Genetics id'));
     if(!genetics)throw new Error('Genetics not found.');
     if(genetics.payload.type!=='semen')throw new Error('Dose stock requires semen genetics.');
-    const entity={id:text(input?.id,'Dose stock id'),geneticsId:genetics.payload.id,batch:text(input?.batch,'Dose batch'),quantityDoses:integer(input?.quantityDoses,'Dose quantity'),minDoses:integer(input?.minDoses??0,'Minimum doses'),expiresAt:input?.expiresAt?iso(input.expiresAt,'Dose expiration'):null,costPerDoseMinor:integer(input?.costPerDoseMinor??0,'Cost per dose'),active:input?.active!==false,notes:input?.notes?.trim?.()||null};
+    const current=await persistence.getRecord(DOSES,id);
+    const entity={id,geneticsId:genetics.payload.id,batch:text(input?.batch,'Dose batch'),quantityDoses:integer(input?.quantityDoses,'Dose quantity'),minDoses:integer(input?.minDoses??0,'Minimum doses'),expiresAt:input?.expiresAt?iso(input.expiresAt,'Dose expiration'):null,costPerDoseMinor:integer(input?.costPerDoseMinor??0,'Cost per dose'),active:input?.active!==false,notes:input?.notes?.trim?.()||null,...(current?.payload?.lastAdjustment?{lastAdjustment:current.payload.lastAdjustment}:{})};
     return save(DOSES,entity,actorId);
   }
 

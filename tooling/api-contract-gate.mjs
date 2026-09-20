@@ -18,7 +18,13 @@ export function canonicalJson(value){
 export function contractDigest(contract){return createHash('sha256').update(canonicalJson(contract)).digest('hex')}
 
 export function projectProductContract(product){
-  return{schemaVersion:1,productId:product.productId,screens:[...(product.screens??[])],actions:Object.fromEntries(Object.entries(product.actions??{}).map(([key,value])=>[key,[...value]]))};
+  return{
+    schemaVersion:1,
+    productId:product.productId,
+    screens:[...(product.screens??[])],
+    actions:Object.fromEntries(Object.entries(product.actions??{}).map(([key,value])=>[key,[...value]])),
+    rpcMethods:[...(product.rpcMethods??[])]
+  };
 }
 
 export function validateContractSnapshot({declared,current,baseline}){

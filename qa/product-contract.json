@@ -22,55 +22,51 @@
     "trades",
     "finance",
     "reports",
+    "traceability",
+    "inventory",
+    "pastures",
+    "nutrition",
+    "tasks",
+    "data",
     "iot",
     "settings"
   ],
   "actions": {
     "overview": [],
-    "lots": [
-      "save",
-      "remove"
-    ],
-    "animals": [
-      "save",
-      "move",
-      "lifecycle"
-    ],
-    "weights": [
-      "record"
-    ],
-    "sanitary": [
-      "saveProtocol",
-      "record"
-    ],
-    "reproduction": [
-      "record"
-    ],
-    "trades": [
-      "create"
-    ],
-    "finance": [
-      "addCost",
-      "fromTrade"
-    ],
-    "reports": [
-      "csv",
-      "issue"
-    ],
-    "iot": [
-      "saveDevice",
-      "removeDevice",
-      "testDevice",
-      "startDevice",
-      "stopDevice",
-      "bindRfid",
-      "unbindRfid",
-      "simulateRfid",
-      "simulateWeight"
-    ],
-    "settings": [
-      "backup",
-      "restore"
-    ]
-  }
+    "lots": ["save", "remove"],
+    "animals": ["save", "recordMilk", "move", "lifecycle", "batchMove", "batchLifecycle"],
+    "weights": ["record"],
+    "sanitary": ["saveProtocol", "record", "batchRecord"],
+    "reproduction": ["record", "batchRecord"],
+    "trades": ["create"],
+    "finance": ["addCost", "fromTrade"],
+    "reports": ["csv", "pdf", "issue"],
+    "traceability": ["save", "remove"],
+    "inventory": ["save", "adjust"],
+    "pastures": ["save", "enterLot", "leaveLot"],
+    "nutrition": ["save", "consume"],
+    "tasks": ["save", "complete"],
+    "data": ["saveFarmUnit", "saveBreed", "saveCategory", "saveParty", "exportCollection", "validateImport", "importCollection"],
+    "iot": ["saveDevice", "removeDevice", "testDevice", "startDevice", "stopDevice", "bindRfid", "unbindRfid", "simulateRfid", "simulateWeight"],
+    "settings": ["backup", "restore"]
+  },
+  "rpcMethods": [
+    "describe",
+    "authState",
+    "bootstrap",
+    "login",
+    "validate",
+    "logout",
+    "search",
+    "alerts",
+    "audit",
+    "insights",
+    "simulateSale",
+    "reproductionAdmin",
+    "userAdmin",
+    "fieldSync",
+    "references",
+    "load",
+    "action"
+  ]
 }

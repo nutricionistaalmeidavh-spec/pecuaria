@@ -5,11 +5,12 @@
 - Banco: `artisys-pecuaria.sqlite`
 - Migration obrigatória: `agro-pecuaria/001-initial.sql`
 - Telas navegáveis atuais: **17**
-- Ações declaradas na apresentação: **49**
+- Ações declaradas/certificadas na apresentação: **49**
+- Métodos RPC contratados: **17**
 - Arquitetura: **desktop local-first**
 - Dependência paga obrigatória: **nenhuma**
 
-> Fonte de verdade funcional: `src/ui.js`, `src/presentation.js` e `docs/FUNCTIONALITY_MATRIX.md`.
+> Fonte de verdade funcional: `src/ui.js`, `src/presentation.js`, `runtime/backend.mjs`, `qa/product-contract.json` e `docs/FUNCTIONALITY_MATRIX.md`.
 > Atualizado em 2026-09-20. Contagens históricas de 10/11 telas e 16/25 ações não representam mais a superfície atual.
 
 ## Superfície funcional atual
@@ -32,7 +33,7 @@
 16. Dispositivos e IoT
 17. Configurações
 
-A relação completa de ações por tela está em `docs/FUNCTIONALITY_MATRIX.md`.
+A relação completa de ações por tela e RPCs está em `docs/FUNCTIONALITY_MATRIX.md`.
 
 ## Produto
 
@@ -50,10 +51,14 @@ O núcleo mantém:
 - manejo coletivo de movimentação, ciclo de vida, sanidade e reprodução;
 - estoque com movimentações, lote, validade, mínimo e custo;
 - nutrição por lote com cálculo de consumo e baixa transacional do alimento;
-- pastagens/áreas com capacidade e histórico de ocupação;
+- pastagens/áreas com capacidade, UA/ha, ocupação, descanso e produtividade por área;
 - rastreabilidade com identificação oficial/documentos;
 - relatórios CSV/PDF e emissão persistida;
-- resultado econômico por lote.
+- resultado econômico por lote, DRE produtiva, apropriação e comparativos;
+- simulador comercial sem persistência;
+- reprodução profissional com genética, sêmen, estoque de doses, estação de monta e eficiência;
+- administração local de usuários/perfis e auditoria;
+- modo campo offline com sincronização local criptografada.
 
 ## P0 de profundidade de mercado — concluído
 
@@ -65,7 +70,8 @@ O P0 aprofunda módulos existentes sem ampliar o menu e sem introduzir dependên
 - cálculo de peso vivo, @ de peso vivo, peso de carcaça, rendimento de carcaça e @ de carcaça;
 - venda pode calcular o fechamento por preço/@ de carcaça;
 - valor bruto, descontos, frete, comissão e valor líquido ficam persistidos no fechamento;
-- a tela de Compras e Vendas expõe os dados de carcaça em vez de escondê-los em metadados;
+- a tela de Compras e Vendas expõe os dados de carcaça;
+- simulador de cenário calcula o fechamento sem criar venda nem alterar estoque/rebanho;
 - o indicador econômico legado continua compatível, mas a interface identifica claramente `Custo/@ peso vivo`.
 
 ### Sanidade integrada à operação
@@ -78,18 +84,48 @@ O P0 aprofunda módulos existentes sem ampliar o menu e sem introduzir dependên
 - venda de animal com carência sanitária ativa é bloqueada antes de qualquer gravação;
 - registros antigos continuam aceitos quando ainda não existe item correspondente no estoque.
 
-### Reprodução com indicadores de manejo
+### Reprodução profissional
 
-- eventos cobrem serviço, diagnóstico de gestação, perda gestacional, parto e desmame;
-- a tela de Reprodução deriva e exibe taxas de serviço, concepção, prenhez, perda gestacional, parto e desmame;
-- o dashboard preserva o resumo histórico existente e expõe os indicadores derivados separadamente, sem quebrar consumidores anteriores.
+Além dos eventos de serviço, diagnóstico, perda gestacional, parto e desmame, o produto mantém:
+
+- taxas de serviço, concepção, prenhez, perda, parto e desmame;
+- intervalo entre partos e dias em aberto;
+- cadastro e edição de touros/sêmen;
+- ativação/desativação de genética;
+- estoque de doses com lote, validade, custo/dose e mínimo;
+- edição e ativação/desativação de lotes de doses;
+- ajuste manual auditável de quantidade com motivo e data;
+- estação de monta com meta de concepção e status planejada/ativa/encerrada;
+- registro profissional de serviço com método, protocolo, genética, lote de doses, quantidade utilizada, previsão de parto e observações;
+- eficiência por protocolo, reprodutor e estação.
 
 ### Contatos e partes comerciais
 
 - cliente, fornecedor, frigorífico e demais partes podem ser cadastrados como entidades locais de catálogo;
 - contatos suportam papéis, documento, telefone, e-mail e observações;
 - contatos participam da busca global e dos fluxos de exportação/importação;
-- negociações continuam usando `partyId`, agora com cadastro de parte correspondente disponível ao usuário.
+- negociações continuam usando `partyId`, com cadastro de parte correspondente disponível ao usuário.
+
+### Campo/mobile offline
+
+O modo campo atual é local-first e não depende de nuvem:
+
+- fila de manejo;
+- conclusão rápida de tarefas;
+- pesagem com teclado de toque;
+- movimentação de animal entre lotes;
+- aplicação sanitária rápida;
+- pareamento base/campo;
+- exportação/importação de pacote local criptografado;
+- fila pendente e detecção de conflitos.
+
+### Administração local
+
+- criação e edição de usuários;
+- ativação/desativação;
+- redefinição de senha;
+- perfis e matriz de permissões;
+- auditoria local das operações.
 
 ## Alertas operacionais
 
@@ -100,6 +136,7 @@ A central de alertas cobre atualmente:
 - animal ativo com pesagem desatualizada;
 - estoque abaixo do mínimo;
 - insumo próximo da validade ou vencido;
+- estoque de doses reprodutivas no mínimo ou próximo da validade;
 - tarefa de manejo atrasada;
 - previsão de parto próxima, quando informada;
 - backup ausente/desatualizado.
@@ -148,6 +185,8 @@ A cadeia possui:
 - build Windows NSIS;
 - evidências de release com SHA-256.
 
+O contrato principal agora representa **17 telas, 49 ações e 17 métodos RPC**. A Fase 5 compara conjuntos completos de navegação, telas e ações com o contrato, para bloquear tanto funcionalidades ausentes quanto deriva por funcionalidades novas não certificadas.
+
 Security em release bloqueia findings `MEDIUM`, `HIGH`, `CRITICAL` e desconhecidos.
 
 ### Fase 7 sem banco de cliente
@@ -158,26 +197,26 @@ Como o produto ainda não possui base legada de cliente em produção, `npm run 
 
 ## Woodpecker
 
-O Woodpecker é opcional e manual. Não é requisito para QA, build, certificação ou publicação normal.
+O Woodpecker é opcional e manual. Não é requisito funcional do produto.
 
 ## Profundidade funcional — próximos aprofundamentos
 
-O P0 corrigiu as principais lacunas de domínio identificadas na comparação com o mercado. Os próximos ganhos de profundidade devem continuar dentro dos módulos existentes.
+Os aprofundamentos que antes estavam planejados para pastagens, inteligência produtiva, reprodução profissional, simulador comercial e campo offline inicial já estão presentes. As próximas prioridades passam a ser:
 
-1. **Pastagens:** UA/ha, lotação realizada x capacidade, dias de ocupação/descanso, pressão de pastejo e desempenho por área.
-2. **Campo/mobile:** operação offline de curral/campo, sincronizada localmente, sem tornar nuvem ou serviço pago uma dependência do core.
-3. **Inteligência produtiva:** projeção de peso, ranking de animais/lotes, kg/ha, @/ha e calendário de manejo mais analítico.
-4. **Reprodução avançada:** estação de monta, IATF completa, intervalo entre partos/dias em aberto e desempenho por reprodutor, sêmen e protocolo.
-5. **Comercial avançado:** simulador de venda e comparativos de cenários antes do fechamento real.
+1. **Financeiro administrativo:** caixa, contas a pagar/receber, previsto x realizado e conciliação local.
+2. **Campo/mobile ampliado:** reprodução, nascimento/desmame/baixa, RFID, rastreabilidade, manejo coletivo, pastagem e consulta Animal 360º offline.
+3. **Pastagem visual:** mapa/piquetes, escores configuráveis, fotos e planejamento visual de rotação.
+4. **Nutrição avançada opcional:** matéria seca, composição, conversão e manejo de cocho para operações que exigirem maior especialização.
+5. **Integrações fiscais/externas opcionais:** importação de XML/NF-e ou integrações oficiais sem tornar serviços externos dependência do core.
 
 ### Escopos especializados
 
 - O suporte atual a leite é básico (registro de produção) e **não deve ser apresentado como gestão leiteira completa**.
-- Confinamento e genética avançada não constituem módulos especializados completos na versão atual.
+- Confinamento, genética/DEP e reprodução embrionária avançada não constituem módulos especializados completos na versão atual.
 - O foco funcional mais aderente hoje é pecuária bovina generalista, especialmente corte/cria/recria/engorda.
 
 ## Regra arquitetural/comercial
 
 O **core obrigatório deve continuar R$ 0 de infraestrutura recorrente, local/self-hosted e baseado em componentes open source**. Serviços pagos, nuvem, APIs comerciais ou integrações externas podem existir apenas como opções explícitas e nunca como dependência silenciosa do funcionamento principal.
 
-**Estado:** P0 de profundidade de mercado concluído na branch de hardening; P0/P1 de produto, IoT P0/P1, reporting/dashboard, updater e P2 de engenharia permanecem integrados. A próxima evolução deve priorizar profundidade operacional e decisão, sem ampliar o menu por ampliar.
+**Estado:** profundidade P0, IoT P0/P1, reporting/dashboard, reprodução profissional, administração local, campo offline inicial, updater e P2 de engenharia estão integrados na superfície atual. A próxima evolução deve priorizar profundidade operacional e decisão, sem ampliar o menu por ampliar.

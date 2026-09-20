@@ -27,6 +27,11 @@ const navigation=Object.freeze([
   {id:'trades',label:'Compras e Vendas',icon:'badge-dollar-sign'},
   {id:'finance',label:'Resultado por Lote',icon:'wallet-cards'},
   {id:'reports',label:'Relatórios Zootécnicos',icon:'chart-no-axes-combined'},
+  {id:'traceability',label:'Rastreabilidade',icon:'scan-line'},
+  {id:'inventory',label:'Estoque e Insumos',icon:'package'},
+  {id:'pastures',label:'Pastagens e Áreas',icon:'sprout'},
+  {id:'nutrition',label:'Nutrição',icon:'wheat'},
+  {id:'tasks',label:'Agenda de Manejo',icon:'calendar-check'},
   {id:'data',label:'Dados e Cadastros',icon:'database'},
   {id:'iot',label:'Dispositivos e IoT',icon:'radio-tower'},
   {id:'settings',label:'Configurações',icon:'settings'}

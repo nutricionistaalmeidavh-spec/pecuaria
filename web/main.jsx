@@ -53,6 +53,7 @@ function App(){
   const [updateState,setUpdateState]=useState(null);
   const [searchResults,setSearchResults]=useState(null);
   const [alertResults,setAlertResults]=useState(null);
+  const [references,setReferences]=useState({});
   const updates=globalThis.artisys?.updates??null;
 
   useEffect(()=>{getBackend().then(async value=>{setBackend(value);setHasUsers((await value.authState()).hasUsers)}).catch(error=>setNotice({tone:'error',text:error.message}))},[]);
@@ -72,7 +73,7 @@ function App(){
       const result=await backend.login(credentials);
       setMeta(null);
       setScreenId(null);
-      setAuth({sessionId:result.session.id,token:result.token});
+      const nextAuth={sessionId:result.session.id,token:result.token};setAuth(nextAuth);backend.references({auth:nextAuth}).then(setReferences).catch(()=>{});
     }catch(error){setNotice({tone:'error',text:error.message})}
   }
 
@@ -99,7 +100,7 @@ function App(){
     <UpdatePanel updates={updates} state={updateState} onState={setUpdateState}/>
     {screenId==='settings'&&updates&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Aplicativo</span><h2>Atualizações</h2><p>Versão instalada: {updateState?.currentVersion??'—'}.</p></div><div className="actions"><button data-testid="check-updates" onClick={async()=>{setUpdateState(await updates.check())}}>Verificar atualizações</button></div></div>{updateState?.status==='current'&&<StatusBanner tone="success">Você está usando a versão mais recente.</StatusBanner>}{updateState?.status==='error'&&<StatusBanner tone="error">Não foi possível verificar atualizações agora. O sistema continua disponível offline.</StatusBanner>}</section>}
     {screenId==='overview'?<OverviewDashboard data={data} onNavigate={navigate}/>:<WorkspaceScreen screenId={screenId} screen={screen} icon={screenNavigation?.icon} records={rows} onAction={name=>{setAction(name);setNotice(null)}}/>}
-    <ActionDialog open={Boolean(action)} definition={activeForm} busy={busy} onClose={()=>setAction(null)} onSubmit={async input=>{setBusy(true);setNotice(null);try{await backend.action({screenId,action,input,auth,context:{}});setAction(null);setNotice({tone:'success',text:'Operação concluída com sucesso.'});await load()}catch(error){setNotice({tone:'error',text:error.message})}finally{setBusy(false)}}}/>
+    <ActionDialog open={Boolean(action)} definition={activeForm} references={references} busy={busy} onClose={()=>setAction(null)} onSubmit={async input=>{setBusy(true);setNotice(null);try{await backend.action({screenId,action,input,auth,context:{}});setAction(null);setNotice({tone:'success',text:'Operação concluída com sucesso.'});await load();backend.references({auth}).then(setReferences).catch(()=>{})}catch(error){setNotice({tone:'error',text:error.message})}finally{setBusy(false)}}}/>
   </DesktopShell>;
 }
 

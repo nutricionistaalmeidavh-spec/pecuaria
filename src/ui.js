@@ -27,6 +27,7 @@ const navigation=Object.freeze([
   {id:'trades',label:'Compras e Vendas',icon:'badge-dollar-sign'},
   {id:'finance',label:'Resultado por Lote',icon:'wallet-cards'},
   {id:'reports',label:'Relatórios Zootécnicos',icon:'chart-no-axes-combined'},
+  {id:'data',label:'Dados e Cadastros',icon:'database'},
   {id:'iot',label:'Dispositivos e IoT',icon:'radio-tower'},
   {id:'settings',label:'Configurações',icon:'settings'}
 ]);

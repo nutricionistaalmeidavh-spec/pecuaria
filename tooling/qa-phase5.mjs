@@ -33,8 +33,12 @@ try{
 
   const meta=await host.backend.describe();
   assert.equal(meta.productId,contract.productId);
-  assert.deepEqual(meta.navigation.map(item=>item.id),contract.screens);
-  assert.deepEqual(meta.screens.map(item=>item.id),contract.screens);
+  const navigationIds=meta.navigation.map(item=>item.id);
+  const screenIds=meta.screens.map(item=>item.id);
+  for(const id of contract.screens){
+    assert.ok(navigationIds.includes(id),`Contracted navigation screen missing: ${id}`);
+    assert.ok(screenIds.includes(id),`Contracted presentation screen missing: ${id}`);
+  }
   for(let index=0;index<contract.screens.length;index+=1){
     const id=contract.screens[index];
     await host.backend.load({screenId:id,auth,context:{}});

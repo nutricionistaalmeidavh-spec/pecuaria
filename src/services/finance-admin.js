@@ -11,6 +11,7 @@ export const FINANCE_ADMIN_COLLECTIONS=Object.freeze({
 });
 
 const rows=records=>(records??[]).map(record=>record?.payload??record);
+const entityOf=value=>value?.payload??value;
 const required=(record,label)=>{if(!record)throw new Error(`${label} not found.`);return record};
 const repositories=store=>Object.fromEntries(Object.entries(FINANCE_ADMIN_COLLECTIONS).map(([key,collection])=>[key,createEntityRepository(store,{collection})]));
 const runTransaction=(persistence,fn)=>typeof persistence.transaction==='function'?persistence.transaction(fn):fn(persistence);
@@ -26,14 +27,14 @@ export function createFinanceAdminService(persistence,{audit=null}={}){
 
   async function saveAccount(input,context={}){
     const entity=createFinanceAccount(input),current=await repos.accounts.get(entity.id);
-    const saved=await repos.accounts.save(entity,{expectedVersion:current?.version??0});
+    const saved=entityOf(await repos.accounts.save(entity,{expectedVersion:current?.version??0}));
     await appendAudit(audit,{actorId:context.actorId,action:'cattle.finance.account.save',entityType:'finance-account',entityId:entity.id});
     return saved;
   }
 
   async function saveCategory(input,context={}){
     const entity=createFinanceCategory(input),current=await repos.categories.get(entity.id);
-    const saved=await repos.categories.save(entity,{expectedVersion:current?.version??0});
+    const saved=entityOf(await repos.categories.save(entity,{expectedVersion:current?.version??0}));
     await appendAudit(audit,{actorId:context.actorId,action:'cattle.finance.category.save',entityType:'finance-category',entityId:entity.id});
     return saved;
   }
@@ -45,24 +46,24 @@ export function createFinanceAdminService(persistence,{audit=null}={}){
       if(settlements.length)throw new Error('Financial title with settlements cannot be edited.');
       if(current.payload.cancelledAt)throw new Error('Cancelled financial title cannot be edited.');
     }
-    const saved=await repos.titles.save(entity,{expectedVersion:current?.version??0});
+    const saved=entityOf(await repos.titles.save(entity,{expectedVersion:current?.version??0}));
     await appendAudit(audit,{actorId:context.actorId,action:'cattle.finance.title.save',entityType:'finance-title',entityId:entity.id});
     return saved;
   }
 
   async function cancelTitle({id,cancelledAt=new Date().toISOString(),reason=null}={},context={}){
-    const result=await runTransaction(persistence,async store=>{
+    const result=entityOf(await runTransaction(persistence,async store=>{
       const scoped=repositories(store),current=required(await scoped.titles.get(id),'Financial title');
       if(current.payload.cancelledAt)return current;
       const next=createFinancialTitle({...current.payload,cancelledAt,cancelReason:reason});
       return scoped.titles.save(next,{expectedVersion:current.version});
-    });
+    }));
     await appendAudit(audit,{actorId:context.actorId,action:'cattle.finance.title.cancel',entityType:'finance-title',entityId:id});
     return result;
   }
 
   async function settleTitle(input,context={}){
-    const result=await runTransaction(persistence,async store=>{
+    const result=entityOf(await runTransaction(persistence,async store=>{
       const scoped=repositories(store),existing=rows(await scoped.settlements.list()).find(item=>item.operationId===input?.operationId);
       if(existing)return existing;
       const titleRecord=required(await scoped.titles.get(input?.titleId),'Financial title'),title=titleRecord.payload;
@@ -70,15 +71,14 @@ export function createFinanceAdminService(persistence,{audit=null}={}){
       const settlement=createSettlement(input),settlements=rows(await scoped.settlements.list()).filter(item=>item.titleId===title.id);
       const state=deriveTitleState(title,settlements);
       if(settlement.amountMinor>state.openAmountMinor)throw new Error('Settlement amount exceeds title open amount.');
-      const saved=await scoped.settlements.save(settlement,{expectedVersion:0});
-      return saved;
-    });
-    await appendAudit(audit,{actorId:context.actorId,action:'cattle.finance.title.settle',entityType:'finance-settlement',entityId:result?.id??result?.payload?.id??input?.id,metadata:{titleId:input?.titleId}});
+      return scoped.settlements.save(settlement,{expectedVersion:0});
+    }));
+    await appendAudit(audit,{actorId:context.actorId,action:'cattle.finance.title.settle',entityType:'finance-settlement',entityId:result?.id??input?.id,metadata:{titleId:input?.titleId}});
     return result;
   }
 
   async function reverseSettlement({id,operationId,settlementId,occurredAt,reason=null}={},context={}){
-    const result=await runTransaction(persistence,async store=>{
+    const result=entityOf(await runTransaction(persistence,async store=>{
       const scoped=repositories(store),all=rows(await scoped.settlements.list()),existing=all.find(item=>item.operationId===operationId);
       if(existing)return existing;
       const original=all.find(item=>item.id===settlementId);
@@ -86,8 +86,8 @@ export function createFinanceAdminService(persistence,{audit=null}={}){
       if(all.some(item=>item.reversesSettlementId===settlementId))throw new Error('Settlement is already reversed.');
       const reversal=createSettlement({id,operationId,titleId:original.titleId,amountMinor:original.amountMinor,occurredAt,accountId:original.accountId,method:original.method,notes:reason,reversesSettlementId:settlementId});
       return scoped.settlements.save(reversal,{expectedVersion:0});
-    });
-    await appendAudit(audit,{actorId:context.actorId,action:'cattle.finance.settlement.reverse',entityType:'finance-settlement',entityId:result?.id??result?.payload?.id??id,metadata:{reversesSettlementId:settlementId}});
+    }));
+    await appendAudit(audit,{actorId:context.actorId,action:'cattle.finance.settlement.reverse',entityType:'finance-settlement',entityId:result?.id??id,metadata:{reversesSettlementId:settlementId}});
     return result;
   }
 

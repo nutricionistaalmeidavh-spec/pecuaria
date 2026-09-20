@@ -7,6 +7,7 @@ on:
       - hardening/reporting-dashboard-p2
       - hardening/reporting-dashboard-p2-integration
       - release/fully-automated-github
+      - feature/pecuaria-ui-p5-p10
       - main
   workflow_dispatch:
 

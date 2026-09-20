@@ -57,10 +57,20 @@ export function createCattleReportingService(persistence){
     }))};
   }
 
+
+  async function inventory(){const items=payloads(await persistence.listRecords('cattle.inventory'));return{type:'inventory',rows:items.map(x=>({id:x.id,name:x.name,kind:x.kind,quantity:x.quantity,minQuantity:x.minQuantity,unit:x.unit,batch:x.batch??'',expiresAt:x.expiresAt??'',costMinor:x.costMinor??0}))};}
+  async function traceability(){const items=payloads(await persistence.listRecords('cattle.traceability'));return{type:'traceability',rows:items.map(x=>({id:x.id,animalId:x.animalId,officialId:x.officialId??'',type:x.type,documentNumber:x.documentNumber??'',issuer:x.issuer??'',issuedAt:x.issuedAt,expiresAt:x.expiresAt??''}))};}
+  async function pasture(){const [areas,occupancy]=await Promise.all([persistence.listRecords('cattle.pastures'),persistence.listRecords('cattle.pasture-occupancy')]);const occ=payloads(occupancy);return{type:'pasture',rows:payloads(areas).map(x=>({id:x.id,name:x.name,areaHa:x.areaHa,capacityAu:x.capacityAu??'',status:x.status,forage:x.forage??'',activeOccupancies:occ.filter(o=>o.pastureId===x.id&&!o.leftAt).length}))};}
+  async function tasks(){const items=payloads(await persistence.listRecords('cattle.tasks'));return{type:'tasks',rows:items.map(x=>({id:x.id,title:x.title,kind:x.kind,dueAt:x.dueAt,status:x.status,animalId:x.animalId??'',lotId:x.lotId??''}))};}
+
   async function build(type,options={}){
     if(type==='animal-history')return animalHistory(options);
     if(type==='lot-kpis')return lotKpis(options);
     if(type==='sanitary')return sanitary(options);
+    if(type==='inventory')return inventory(options);
+    if(type==='traceability')return traceability(options);
+    if(type==='pasture')return pasture(options);
+    if(type==='tasks')return tasks(options);
     throw new Error(`Unknown report type: ${type}`);
   }
 

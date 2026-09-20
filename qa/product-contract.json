@@ -34,11 +34,8 @@
     ],
     "animals": [
       "save",
-      "recordMilk",
       "move",
-      "lifecycle",
-      "batchMove",
-      "batchLifecycle"
+      "lifecycle"
     ],
     "weights": [
       "record"
@@ -75,14 +72,6 @@
     "settings": [
       "backup",
       "restore"
-    ],
-    "data": [
-      "saveFarmUnit",
-      "saveBreed",
-      "saveCategory",
-      "exportCollection",
-      "validateImport",
-      "importCollection"
     ]
   }
 }

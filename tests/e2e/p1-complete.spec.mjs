@@ -22,6 +22,8 @@ test('históricos P1 e indicadores avançados possuem superfície visual',async(
   await page.getByTestId('nav-reproduction').click();await expect(page.getByTestId('reproduction-summary')).toBeVisible();
 });
 
-test('relatórios não oferecem PDF falso',async({page})=>{
-  await login(page);await page.getByTestId('nav-reports').click();await page.getByTestId('action-reports-issue').click();await expect(page.getByTestId('field-format').locator('option')).toHaveText(['Selecione','CSV','JSON']);
+test('relatórios oferecem PDF real',async({page})=>{
+  await login(page);await page.getByTestId('nav-reports').click();await page.getByTestId('action-reports-issue').click();await expect(page.getByTestId('field-format').locator('option')).toHaveText(['Selecione','CSV','PDF','JSON']);
 });
+
+test('ação de PDF real está disponível na UI',async({page})=>{await login(page);await page.getByTestId('nav-reports').click();await expect(page.getByTestId('action-reports-pdf')).toBeVisible();await page.getByTestId('action-reports-pdf').click();await expect(page.getByRole('dialog',{name:'Gerar PDF'})).toBeVisible();});

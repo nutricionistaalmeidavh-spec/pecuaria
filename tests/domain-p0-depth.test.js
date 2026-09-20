@@ -34,6 +34,16 @@ test('commercial settlement distinguishes live arrobas from carcass arrobas',()=
   assert.equal(result.netMinor,429000);
 });
 
+test('sale derives total amount and persists commercial settlement when closing data is supplied',()=>{
+  const trade=domain.createCattleTrade({
+    id:'sale-1',type:'sale',partyId:'buyer-1',animalIds:['a1'],occurredAt:'2026-09-20T12:00:00Z',
+    liveWeightKg:450,carcassYieldPct:50,pricePerCarcassArrobaMinor:30000,deductionsMinor:10000,freightMinor:5000,commissionMinor:6000
+  });
+  assert.equal(trade.totalAmountMinor,429000);
+  assert.equal(trade.metadata.settlement.carcassArrobas,15);
+  assert.equal(trade.metadata.settlement.arrobaBasis,'carcass');
+});
+
 test('production economics exposes explicit live-weight arroba metrics without changing legacy alias',()=>{
   const entries=[{direction:'expense',amountMinor:30000,allocation:{id:'l1'}},{direction:'income',amountMinor:50000,allocation:{id:'l1'}}];
   const animals=[{lotId:'l1',status:'active',weights:[{weightKg:300},{weightKg:330}]}];

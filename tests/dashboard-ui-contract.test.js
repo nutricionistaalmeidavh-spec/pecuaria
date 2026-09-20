@@ -28,6 +28,11 @@ test('P0-P2 shell uses compact green livestock navigation with semantic icons',(
     trades:'badge-dollar-sign',
     finance:'wallet-cards',
     reports:'chart-no-axes-combined',
+    traceability:'scan-line',
+    inventory:'package',
+    pastures:'sprout',
+    nutrition:'wheat',
+    tasks:'calendar-check',
     data:'database',
     iot:'radio-tower',
     settings:'settings'

@@ -30,7 +30,7 @@ test('presentation exposes reporting/dashboard while preserving IoT surface',asy
     assert.equal(typeof presentation.services.reporting?.csv,'function');
     assert.equal(typeof presentation.services.dashboard?.snapshot,'function');
     assert.equal(typeof presentation.services.iot?.load,'function');
-    assert.deepEqual(presentation.screenIds(),['overview','lots','animals','weights','sanitary','reproduction','trades','finance','reports','data','iot','settings']);
+    assert.deepEqual(presentation.screenIds(),['overview','lots','animals','weights','sanitary','reproduction','trades','finance','reports','traceability','inventory','pastures','nutrition','tasks','data','iot','settings']);
   }finally{await f.cleanup()}
 });
 

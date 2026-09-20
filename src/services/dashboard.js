@@ -1,6 +1,8 @@
 const payloads=records=>(records??[]).map(record=>record?.payload??record);
 const finite=value=>Number.isFinite(Number(value));
 const average=values=>values.length?values.reduce((sum,value)=>sum+value,0)/values.length:null;
+const timestamp=value=>{const parsed=Date.parse(value??'');return Number.isFinite(parsed)?parsed:null};
+const occurredAt=value=>value?.occurredAt??value?.performedAt??value?.measuredAt??value?.createdAt??null;
 
 const DEFAULT_LAYOUT=Object.freeze([
   Object.freeze({id:'animals',x:0,y:0,w:1,h:1}),
@@ -23,6 +25,54 @@ export function validateDashboardLayout(layout){
   });
 }
 
+function buildWeightPerformance(active){
+  const latestWeights=[];
+  const gains=[];
+  for(const animal of active){
+    const history=(animal?.weights??[])
+      .filter(item=>finite(item?.weightKg)&&timestamp(item?.measuredAt)!=null)
+      .map(item=>({animalId:animal.id,tag:animal.tag??'',name:animal.name??'',measuredAt:item.measuredAt,weightKg:Number(item.weightKg)}))
+      .sort((a,b)=>timestamp(a.measuredAt)-timestamp(b.measuredAt));
+    latestWeights.push(...history);
+    if(history.length>=2)gains.push(history.at(-1).weightKg-history[0].weightKg);
+  }
+  const ascending=latestWeights.sort((a,b)=>timestamp(a.measuredAt)-timestamp(b.measuredAt));
+  return Object.freeze({
+    averageGainKg:average(gains),
+    latestWeights:Object.freeze([...ascending].sort((a,b)=>timestamp(b.measuredAt)-timestamp(a.measuredAt)).slice(0,8).map(Object.freeze)),
+    series:Object.freeze(ascending.slice(-12).map(Object.freeze))
+  });
+}
+
+function buildRecentActivity({active,eventRows,tradeRows}){
+  const activities=[];
+  for(const animal of active){
+    for(const weight of animal?.weights??[]){
+      if(!finite(weight?.weightKg)||timestamp(weight?.measuredAt)==null)continue;
+      activities.push({kind:'weight',occurredAt:weight.measuredAt,title:'Pesagem registrada',detail:`${animal.tag??animal.id??'Animal'} · ${Number(weight.weightKg)} kg`,icon:'scale',target:'weights'});
+    }
+  }
+  for(const event of eventRows){
+    const at=occurredAt(event);
+    if(timestamp(at)==null)continue;
+    const reproduction=event?.kind==='reproduction';
+    activities.push({
+      kind:reproduction?'reproduction':'sanitary',
+      occurredAt:at,
+      title:reproduction?'Evento reprodutivo':'Manejo sanitário',
+      detail:[event?.animalId,event?.type].filter(Boolean).join(' · '),
+      icon:reproduction?'heart':'shield-plus',
+      target:reproduction?'reproduction':'sanitary'
+    });
+  }
+  for(const trade of tradeRows){
+    const at=occurredAt(trade);
+    if(timestamp(at)==null)continue;
+    activities.push({kind:'trade',occurredAt:at,title:trade?.type==='sale'?'Venda registrada':'Compra registrada',detail:trade?.partyId??trade?.id??'',icon:'badge-dollar-sign',target:'trades'});
+  }
+  return Object.freeze(activities.sort((a,b)=>timestamp(b.occurredAt)-timestamp(a.occurredAt)).slice(0,8).map(Object.freeze));
+}
+
 export function createCattleDashboardService({persistence,alerts}={}){
   if(!persistence?.listRecords)throw new TypeError('Persistence is required.');
   return Object.freeze({
@@ -35,9 +85,14 @@ export function createCattleDashboardService({persistence,alerts}={}){
         persistence.listRecords('cattle.finance'),
         alerts?.list?alerts.list():[]
       ]);
-      const active=payloads(animals).filter(animal=>animal?.status==='active');
+      const lotRows=payloads(lots);
+      const animalRows=payloads(animals);
+      const active=animalRows.filter(animal=>animal?.status==='active');
       const weights=active.map(animal=>animal?.weights?.at(-1)?.weightKg).filter(finite).map(Number);
       const eventRows=payloads(events);
+      const tradeRows=payloads(trades);
+      const sanitaryEvents=eventRows.filter(event=>event?.kind==='sanitary');
+      const reproductionEvents=eventRows.filter(event=>event?.kind==='reproduction');
       let costMinor=0,incomeMinor=0;
       for(const entry of payloads(finance)){
         const amount=finite(entry?.amountMinor)?Number(entry.amountMinor):0;
@@ -49,7 +104,7 @@ export function createCattleDashboardService({persistence,alerts}={}){
         lots:lots.length,
         activeAnimals:active.length,
         averageWeightKg:average(weights),
-        sanitaryEvents:eventRows.filter(event=>event?.kind==='sanitary').length,
+        sanitaryEvents:sanitaryEvents.length,
         trades:trades.length,
         costMinor,
         incomeMinor
@@ -61,10 +116,33 @@ export function createCattleDashboardService({persistence,alerts}={}){
         lots:kpis.lots,
         alerts:alertList.length
       });
+      const reproduction=Object.freeze({
+        total:reproductionEvents.length,
+        services:reproductionEvents.filter(event=>event?.type==='service').length,
+        pregnancyChecks:reproductionEvents.filter(event=>event?.type==='pregnancy-check').length,
+        calvings:reproductionEvents.filter(event=>event?.type==='calving').length,
+        weanings:reproductionEvents.filter(event=>event?.type==='weaning').length
+      });
+      const sanitary=Object.freeze({totalEvents:sanitaryEvents.length,alerts:alertList.length});
+      const lotDistribution=Object.freeze(lotRows.map(lot=>Object.freeze({
+        id:lot.id,
+        name:lot.name??lot.id,
+        purpose:lot.purpose??null,
+        activeAnimals:active.filter(animal=>animal?.lotId===lot.id).length
+      })));
+      const financial=Object.freeze({incomeMinor,costMinor,resultMinor:incomeMinor-costMinor});
+      const performance=buildWeightPerformance(active);
+      const recentActivity=buildRecentActivity({active,eventRows,tradeRows});
       return Object.freeze({
         kpis,
         primaryKpis,
         alerts:alertList,
+        performance,
+        reproduction,
+        sanitary,
+        lotDistribution,
+        finance:financial,
+        recentActivity,
         layout:Object.freeze(validateDashboardLayout(DEFAULT_LAYOUT))
       });
     }

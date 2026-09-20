@@ -35,10 +35,8 @@ try{
   assert.equal(meta.productId,contract.productId);
   const navigationIds=meta.navigation.map(item=>item.id);
   const screenIds=meta.screens.map(item=>item.id);
-  for(const id of contract.screens){
-    assert.ok(navigationIds.includes(id),`Contracted navigation screen missing: ${id}`);
-    assert.ok(screenIds.includes(id),`Contracted presentation screen missing: ${id}`);
-  }
+  assert.deepEqual(sorted(navigationIds),sorted(contract.screens),'Navigation surface drift detected');
+  assert.deepEqual(sorted(screenIds),sorted(contract.screens),'Presentation screen surface drift detected');
   for(let index=0;index<contract.screens.length;index+=1){
     const id=contract.screens[index];
     await host.backend.load({screenId:id,auth,context:{}});
@@ -46,15 +44,16 @@ try{
     const expected=contract.actions[id]??[];
     const presentationActions=Object.keys(host.presentation.screen(id).actions??{});
     const describedActions=Object.keys(description?.actionDefinitions??{});
-    for(const action of expected){
-      assert.ok(presentationActions.includes(action),`Contracted presentation action missing: ${id}.${action}`);
-      assert.ok(describedActions.includes(action),`Contracted described action missing: ${id}.${action}`);
-    }
+    assert.deepEqual(sorted(presentationActions),sorted(expected),`Presentation action drift: ${id}`);
+    assert.deepEqual(sorted(describedActions),sorted(expected),`Described action drift: ${id}`);
     summary.screens.push({id,actions:expected.length,loaded:true});
     line('PASS',`Tela ${index+1}/${contract.screens.length}: ${id}`,`${expected.length} ações`);
   }
+  for(const method of contract.rpcMethods??[])assert.equal(typeof host.backend[method],'function',`Contracted RPC missing: ${method}`);
   summary.checks.surface=true;
+  summary.checks.rpcSurface=true;
   summary.screensCovered=contract.screens.length;
+  summary.rpcMethodsCovered=(contract.rpcMethods??[]).length;
 
   const actionRun=spawnSync(process.execPath,['--test','tests/product-actions.test.js'],{
     cwd:repoRoot,
@@ -100,7 +99,7 @@ try{
   summary.actionCount=contractedActionCount;
   summary.finishedAt=new Date().toISOString();
   await writeEvidence(summaryPath,summary);
-  line('PASS','FASE 5',`${summary.screenCount}/${summary.screenCount} telas, ${summary.actionCount}/${summary.actionCount} ações funcionais`);
+  line('PASS','FASE 5',`${summary.screenCount}/${summary.screenCount} telas, ${summary.actionCount}/${summary.actionCount} ações funcionais, ${summary.rpcMethodsCovered} RPCs`);
 }catch(error){
   summary.error=error.stack??error.message;
   summary.finishedAt=new Date().toISOString();

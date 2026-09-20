@@ -4,7 +4,7 @@ import {createBrowserPersistence,createBrowserRecovery} from '../shared/packages
 import {createCattlePresentation} from '../src/presentation.js';
 import {createRpcBackend} from '../runtime/backend.mjs';
 import {getActionForm} from './action-config.js';
-import {ActionDialog,DataTable,DesktopShell,StatusBanner} from './components.jsx';
+import {ActionDialog,DesktopShell,StatusBanner,WorkspaceScreen} from './components.jsx';
 import {OverviewDashboard} from './dashboard.jsx';
 import {Icon} from './icons.jsx';
 import './styles.css';
@@ -25,12 +25,6 @@ const pickRows=data=>{
   if(Array.isArray(data?.backups))return data.backups;
   if(Array.isArray(data?.devices))return data.devices;
   return [];
-};
-const cardLabel=key=>({lots:'Lotes',activeAnimals:'Animais ativos',averageWeightKg:'Peso médio (kg)',sanitaryEvents:'Eventos sanitários',trades:'Negociações',costMinor:'Custos',incomeMinor:'Receitas'}[key]??key);
-const show=(value,key)=>{
-  if(value==null)return '—';
-  if((key==='costMinor'||key==='incomeMinor')&&typeof value==='number')return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(value/100);
-  return typeof value==='number'?new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(value):String(value);
 };
 
 function UpdatePanel({updates,state,onState}){
@@ -81,6 +75,7 @@ function App(){
   }
 
   const screen=meta?.screens.find(item=>item.id===screenId);
+  const screenNavigation=meta?.navigation.find(item=>item.id===screenId);
   const rows=useMemo(()=>pickRows(data),[data]);
   const activeForm=action?getActionForm(screenId,action):null;
 
@@ -92,14 +87,11 @@ function App(){
   const navigation=<>{meta.navigation.map(item=><button key={item.id} data-testid={`nav-${item.id}`} className={`nav-item ${item.id===screenId?'on':''}`} onClick={()=>navigate(item.id)}><Icon name={item.icon} size={19}/><span>{item.label}</span></button>)}</>;
   const brand=<div className="brand-lockup"><span className="brand-mark"><Icon name="beef" size={26}/></span><span><strong>{meta.brand.productName??meta.brand.name??'ArtiSys Pecuária'}</strong><small>Pecuária</small></span></div>;
 
-  return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Dashboard'} notificationCount={data?.alerts?.length??0} onLogout={()=>{setAuth(null);setMeta(null);setScreenId(null);setData(null)}}>
+  return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Dashboard'} notificationCount={screenId==='overview'?(data?.alerts?.length??0):0} onLogout={()=>{setAuth(null);setMeta(null);setScreenId(null);setData(null)}}>
     {notice&&<StatusBanner tone={notice.tone}>{notice.text}</StatusBanner>}
     <UpdatePanel updates={updates} state={updateState} onState={setUpdateState}/>
     {screenId==='settings'&&updates&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Aplicativo</span><h2>Atualizações</h2><p>Versão instalada: {updateState?.currentVersion??'—'}.</p></div><div className="actions"><button data-testid="check-updates" onClick={async()=>{setUpdateState(await updates.check())}}>Verificar atualizações</button></div></div>{updateState?.status==='current'&&<StatusBanner tone="success">Você está usando a versão mais recente.</StatusBanner>}{updateState?.status==='error'&&<StatusBanner tone="error">Não foi possível verificar atualizações agora. O sistema continua disponível offline.</StatusBanner>}</section>}
-    {screenId==='overview'?<OverviewDashboard data={data} onNavigate={navigate}/>:<>
-      {data?.cards&&<section className="cards">{Object.entries(data.cards).map(([key,value])=><article key={key}><span>{cardLabel(key)}</span><strong>{show(value,key)}</strong></article>)}</section>}
-      <section className="panel"><div className="panel-heading"><div><span className="eyebrow">Operação</span><h2>{screen?.title}</h2></div><div className="actions">{Object.entries(screen?.actionDefinitions??{}).map(([name,definition])=><button key={name} data-testid={`action-${screenId}-${name}`} onClick={()=>{setAction(name);setNotice(null)}}>{definition.label??name}</button>)}</div></div><DataTable records={rows}/></section>
-    </>}
+    {screenId==='overview'?<OverviewDashboard data={data} onNavigate={navigate}/>:<WorkspaceScreen screenId={screenId} screen={screen} icon={screenNavigation?.icon} records={rows} onAction={name=>{setAction(name);setNotice(null)}}/>}
     <ActionDialog open={Boolean(action)} definition={activeForm} busy={busy} onClose={()=>setAction(null)} onSubmit={async input=>{setBusy(true);setNotice(null);try{await backend.action({screenId,action,input,auth,context:{}});setAction(null);setNotice({tone:'success',text:'Operação concluída com sucesso.'});await load()}catch(error){setNotice({tone:'error',text:error.message})}finally{setBusy(false)}}}/>
   </DesktopShell>;
 }

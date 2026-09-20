@@ -5,6 +5,7 @@ on:
     branches: [p1-operational-depth]
     paths:
       - tooling/apply-p1a-surface.mjs
+      - tooling/apply-p1a-ui.mjs
       - tooling/apply-p1b-surface.mjs
       - tooling/apply-p1c-surface.mjs
 
@@ -26,6 +27,7 @@ jobs:
           case "${{ github.event.head_commit.modified }} ${{ github.event.head_commit.added }}" in
             *apply-p1c-surface.mjs*) node tooling/apply-p1c-surface.mjs ;;
             *apply-p1b-surface.mjs*) node tooling/apply-p1b-surface.mjs ;;
+            *apply-p1a-ui.mjs*) node tooling/apply-p1a-ui.mjs ;;
             *) node tooling/apply-p1a-surface.mjs ;;
           esac
       - name: Commit generated source changes

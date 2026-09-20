@@ -56,7 +56,7 @@ function PerformanceCard({performance,onNavigate}){
   return <article className="dashboard-detail-card performance-card" data-testid="performance-card">
     <CardHeading icon="scale" title="Pesagem e desempenho" description="Evolução recente do rebanho" action="Ver histórico" onAction={()=>onNavigate('weights')}/>
     <div className="performance-body">
-      <div className="performance-metric"><span>Ganho médio observado</span><strong>{performance?.averageGainKg==null?'—':`${number(performance.averageGainKg)} kg`}</strong><small>entre primeira e última pesagem dos animais com histórico</small></div>
+      <div className="performance-metric"><span>GMD médio</span><strong>{performance?.averageDailyGainKg==null?'—':`${number(performance.averageDailyGainKg)} kg/dia`}</strong><small>ganho médio diário dos animais com histórico válido</small></div>
       <WeightChart series={performance?.series??[]}/>
     </div>
     <div className="recent-weights">

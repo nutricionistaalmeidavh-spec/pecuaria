@@ -44,8 +44,9 @@ export function createCattleReportingService(persistence){
     return{type:'lot-kpis',rows:lotRows.map(lot=>{
       const active=animalRows.filter(animal=>animal?.lotId===lot.id&&animal?.status==='active');
       const weights=active.map(animal=>animal?.weights?.at(-1)?.weightKg).filter(finite).map(Number);
+      const dailyGains=active.map(animal=>{const h=(animal?.weights??[]).filter(w=>finite(w?.weightKg)&&Date.parse(w?.measuredAt));if(h.length<2)return null;const first=h[0],last=h.at(-1),days=Math.max(1,(Date.parse(last.measuredAt)-Date.parse(first.measuredAt))/86400000);return(Number(last.weightKg)-Number(first.weightKg))/days}).filter(finite).map(Number);
       const money=financeForLot(financeRows,lot.id);
-      return{lotId:lot.id,lotName:lot.name??'',activeAnimals:active.length,averageWeightKg:average(weights),...money};
+      return{lotId:lot.id,lotName:lot.name??'',activeAnimals:active.length,averageWeightKg:average(weights),averageDailyGainKg:average(dailyGains),...money};
     })};
   }
 

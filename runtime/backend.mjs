@@ -25,6 +25,7 @@ export function createRpcBackend({presentation}){
     logout:auth=>security.revoke(auth),
     async search({term,auth,collections=null,limit=25}){await session(auth);return presentation.services.search.query({term,collections,limit});},
     async alerts({auth}){await session(auth);return presentation.services.alerts.list();},
+    async references({auth}){await session(auth);const [lots,animals,data]=await Promise.all([presentation.load('lots',{}),presentation.load('animals',{}),presentation.load('data',{})]);const unwrap=rows=>(rows??[]).map(r=>r.payload??r);const catalog=unwrap(data.rows);return{lots:unwrap(lots.rows),animals:unwrap(animals.rows),farms:catalog.filter(x=>x.registration!==undefined||x.location!==undefined),breeds:catalog.filter(x=>x.species!==undefined),categories:catalog.filter(x=>x.purpose!==undefined&&x.species===undefined&&x.registration===undefined)};},
     async load({screenId,auth,context={}}){
       await session(auth,permission(screenId,'read'));
       return presentation.load(screenId,context);

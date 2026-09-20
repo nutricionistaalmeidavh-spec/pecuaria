@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/iot-local-p1
+      - p1-operational-depth
   workflow_dispatch:
 
 jobs:

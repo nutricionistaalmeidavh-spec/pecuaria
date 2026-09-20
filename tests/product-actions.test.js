@@ -72,8 +72,8 @@ test('scenario registry exactly matches and executes all 49 contracted actions',
         const current=await repos.lots.get('lot-remove');
         return run('lots','remove',{id:'lot-remove',expectedVersion:current.version});
       },
-      'animals.save':()=>run('animals','save',createAnimal({id:'animal-action',tag:'ACTION-QA',farmUnitId:'farm-1',lotId:'lot-main'})),
-      'animals.recordMilk':()=>run('animals','recordMilk',{id:'animal-milk',liters:12.5,measuredAt:'2026-09-19T14:45:00Z'}),
+      'animals.save':()=>run('animals','save',createAnimal({id:'animal-action',tag:'ACTION-QA',farmUnitId:'farm-1',lotId:'lot-main',purpose:'dairy'})),
+      'animals.recordMilk':()=>run('animals','recordMilk',{id:'animal-action',liters:12.5,measuredAt:'2026-09-19T14:45:00Z'}),
       'animals.move':()=>run('animals','move',{id:'animal-move',toLotId:'lot-target',movedAt:'2026-09-19T15:00:00Z',reason:'qa'}),
       'animals.lifecycle':()=>run('animals','lifecycle',{id:'animal-life',type:'death',occurredAt:'2026-09-19T15:05:00Z',reason:'qa'}),
       'animals.batchMove':()=>run('animals','batchMove',{animalIds:['animal-batch-move-1','animal-batch-move-2'],toLotId:'lot-target',movedAt:'2026-09-19T15:06:00Z',reason:'qa-batch'}),

@@ -6,7 +6,7 @@ import {createCattleInvariantService} from './invariants.js';
 import {createCattleTrade,recordWeight,recordMilkProduction,recordReproductionEvent} from './index.js';
 import {createCattleBreed,createCattleCategory,createFarmUnit} from './catalog.js';
 import {moveAnimal,recordAnimalLifecycle,recordSanitaryEvent,cattleWeightGain} from './operations.js';
-import {createCattleTradeEntry,createCattleCost,cattleFinancialMetrics} from './finance.js';
+import {createCattleTradeEntry,createCattleCost,cattleFinancialMetrics,cattleProductionEconomics} from './finance.js';
 import {createDocumentService} from './documents.js';
 import {createSecurityService} from './security.js';
 import {createAuditService} from './audit.js';
@@ -62,7 +62,7 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
       batchRecord:audited('cattle.reproduction.batch-record','reproduction-event',async input=>{const results=[];for(const animalId of input.animalIds??[]){await invariants.assertAnimalExists(animalId);const event=recordReproductionEvent({...input,id:`${input.idPrefix??'repro'}-${animalId}-${Date.now()}`,animalId});results.push(await repos.events.save({...event,kind:'reproduction'},{expectedVersion:0}));}return results;})
     }},
     trades:{kind:'trade-workflow',load:async()=>({rows:await repos.trades.list()}),actions:{async create(input,context={}){if(input?.type==='sale'){const result=await sellAnimals({...input,actorId:context.actorId??'system'});return result.trade;}const result=await repos.trades.save(createCattleTrade(input),{expectedVersion:0});await auditMutation({action:'cattle.trade.create',entityType:'trade',input,context,result});return result;}}},
-    finance:{kind:'lot-finance',load:async({lotId=null}={})=>{const[entries,animals]=await Promise.all([finance.list(),repos.animals.list()]);const headCount=lotId?rows(animals).filter(animal=>animal.lotId===lotId&&animal.status==='active').length:0;return{rows:entries,metrics:lotId?cattleFinancialMetrics(rows(entries),{lotId,headCount}):null};},actions:{addCost:audited('cattle.finance.cost.add','finance-entry',input=>finance.save(createCattleCost(input),{expectedVersion:0})),fromTrade:audited('cattle.finance.from-trade','finance-entry',async({tradeId,id,lotId=null})=>{const trade=required(await repos.trades.get(tradeId),'Cattle trade');return finance.save(createCattleTradeEntry(trade.payload,{id,lotId}),{expectedVersion:0});})}},
+    finance:{kind:'lot-finance',load:async({lotId=null}={})=>{const[entries,animals]=await Promise.all([finance.list(),repos.animals.list()]);const headCount=lotId?rows(animals).filter(animal=>animal.lotId===lotId&&animal.status==='active').length:0;return{rows:entries,metrics:lotId?cattleProductionEconomics(rows(entries),{lotId,animals:rows(animals)}):null};},actions:{addCost:audited('cattle.finance.cost.add','finance-entry',input=>finance.save(createCattleCost(input),{expectedVersion:0})),fromTrade:audited('cattle.finance.from-trade','finance-entry',async({tradeId,id,lotId=null})=>{const trade=required(await repos.trades.get(tradeId),'Cattle trade');return finance.save(createCattleTradeEntry(trade.payload,{id,lotId}),{expectedVersion:0});})}},
     reports:{kind:'reports',load:async()=>({definitions:documents.definitions,issued:await persistence.listRecords('issued-documents')}),actions:{
       csv:async({type,...options})=>{const report=await reporting.build(type,options);return documents.buildCsv(type,report.rows);},
       issue:audited('cattle.report.issue','issued-document',async input=>{

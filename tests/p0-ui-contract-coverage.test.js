@@ -5,13 +5,13 @@ import {projectProductContract} from '../tooling/api-contract-gate.mjs';
 
 const json=async path=>JSON.parse(await readFile(new URL(path,import.meta.url),'utf8'));
 
-test('product contract certifies the complete 17-screen 49-action surface and supplemental RPCs',async()=>{
+test('product contract certifies the complete 17-screen 58-action surface and supplemental RPCs',async()=>{
   const [product,declared]=await Promise.all([
     json('../qa/product-contract.json'),
     json('../qa/api-contract.json')
   ]);
   assert.equal(product.screens.length,17);
-  assert.equal(Object.values(product.actions).flat().length,49);
+  assert.equal(Object.values(product.actions).flat().length,58);
   assert.deepEqual(declared.screens,product.screens);
   assert.deepEqual(declared.actions,product.actions);
   for(const method of ['insights','simulateSale','reproductionAdmin','userAdmin','fieldSync']){

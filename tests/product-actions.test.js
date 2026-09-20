@@ -20,7 +20,7 @@ const executionOrder=[
   'inventory.save','inventory.adjust',
   'sanitary.saveProtocol','sanitary.record','sanitary.batchRecord',
   'reproduction.record','reproduction.batchRecord',
-  'trades.create','finance.addCost','finance.fromTrade',
+  'trades.create','finance.addCost','finance.fromTrade','finance.saveAccount','finance.saveCategory','finance.saveTitle','finance.settleTitle','finance.importStatement','finance.reconcileStatement','finance.reverseSettlement','finance.cancelTitle','finance.importInvoiceXml',
   'traceability.save','traceability.remove',
   'pastures.save','pastures.enterLot','pastures.leaveLot',
   'nutrition.save','nutrition.consume',
@@ -38,7 +38,7 @@ async function authFor(host){
   return{sessionId:logged.session.id,token:logged.token};
 }
 
-test('scenario registry exactly matches and executes all 49 contracted actions',async()=>{
+test('scenario registry exactly matches and executes all 58 contracted actions',async()=>{
   const root=await mkdtemp(join(tmpdir(),'pecuaria-actions-'));
   let host;
   try{
@@ -60,7 +60,7 @@ test('scenario registry exactly matches and executes all 49 contracted actions',
     await host.presentation.services.iot.saveDevice({id:'iot-sim-scale',name:'Balança QA',profileId:'simulator-scale',stationId:'curral-qa',enabled:true,config:{}});
     await host.presentation.services.iot.startDevice('iot-sim-scale');
 
-    let backupId=null;
+    let backupId=null,statementLineId=null;
     const run=(screenId,action,input={})=>host.backend.action({screenId,action,input,auth});
     const transferDocument={
       format:'artisys-pecuaria-export',version:1,productId:'agro-pecuaria',collection:'cattle.parties',exportedAt:'2026-09-19T19:00:00.000Z',
@@ -89,6 +89,15 @@ test('scenario registry exactly matches and executes all 49 contracted actions',
       'trades.create':()=>run('trades','create',{id:'trade-qa',type:'purchase',partyId:'supplier-1',animalIds:[],totalAmountMinor:100000,occurredAt:'2026-09-19T15:25:00Z'}),
       'finance.addCost':()=>run('finance','addCost',{id:'cost-qa',lotId:'lot-main',amountMinor:25000,description:'Custo QA',category:'qa'}),
       'finance.fromTrade':()=>run('finance','fromTrade',{tradeId:'trade-qa',id:'trade-finance-qa',lotId:'lot-main'}),
+      'finance.saveAccount':()=>run('finance','saveAccount',{id:'fin-account-qa',name:'Conta QA',kind:'bank'}),
+      'finance.saveCategory':()=>run('finance','saveCategory',{id:'fin-category-qa',name:'Custos QA',direction:'payable'}),
+      'finance.saveTitle':()=>run('finance','saveTitle',{id:'fin-title-qa',direction:'payable',description:'Título QA',originalAmountMinor:100000,issuedAt:'2026-09-19',dueAt:'2026-10-01',categoryId:'fin-category-qa',accountId:'fin-account-qa'}),
+      'finance.settleTitle':()=>run('finance','settleTitle',{id:'fin-settlement-qa',operationId:'fin-op-settle-qa',titleId:'fin-title-qa',amountMinor:30000,occurredAt:'2026-09-20T10:00:00Z',accountId:'fin-account-qa'}),
+      'finance.importStatement':async()=>{const result=await run('finance','importStatement',{sourceName:'qa.csv',text:'date;description;amount\n2026-09-20;Baixa QA;-300,00'});const lines=await host.persistence.listRecords('cattle.finance-reconciliations');statementLineId=lines[0]?.id;assert.ok(statementLineId);return result;},
+      'finance.reconcileStatement':()=>run('finance','reconcileStatement',{lineId:statementLineId,settlementId:'fin-settlement-qa'}),
+      'finance.reverseSettlement':()=>run('finance','reverseSettlement',{id:'fin-reversal-qa',operationId:'fin-op-reverse-qa',settlementId:'fin-settlement-qa',occurredAt:'2026-09-20T11:00:00Z',reason:'qa'}),
+      'finance.cancelTitle':async()=>{await run('finance','saveTitle',{id:'fin-title-cancel-qa',direction:'receivable',description:'Cancelar QA',originalAmountMinor:5000,issuedAt:'2026-09-19',dueAt:'2026-10-02'});return run('finance','cancelTitle',{id:'fin-title-cancel-qa',cancelledAt:'2026-09-20T12:00:00Z',reason:'qa'});},
+      'finance.importInvoiceXml':()=>run('finance','importInvoiceXml',{sourceName:'nfe-qa.xml',xml:'<NFe><infNFe><ide><nNF>77</nNF><dEmi>2026-09-20</dEmi></ide><emit><CNPJ>12345678000199</CNPJ><xNome>Fornecedor QA</xNome></emit><total><ICMSTot><vNF>123.45</vNF></ICMSTot></total></infNFe></NFe>'}),
       'traceability.save':()=>run('traceability','save',{id:'trace-qa',animalId:'animal-weight',officialId:'BR-QA-001',type:'identity',documentNumber:'DOC-QA',issuer:'QA',issuedAt:'2026-09-19T15:30:00Z'}),
       'traceability.remove':async()=>{
         const current=await host.persistence.getRecord('cattle.traceability','trace-qa');
@@ -166,7 +175,7 @@ test('scenario registry exactly matches and executes all 49 contracted actions',
 
     assert.deepEqual(Object.keys(scenarios).sort(),expectedActions);
     assert.deepEqual([...executionOrder].sort(),expectedActions);
-    assert.equal(expectedActions.length,49);
+    assert.equal(expectedActions.length,58);
 
     const covered=[];
     for(const key of executionOrder){

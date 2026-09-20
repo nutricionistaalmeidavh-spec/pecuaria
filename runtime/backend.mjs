@@ -7,7 +7,7 @@ export function createRpcBackend({presentation}){
     return permission?security.authorize({...args,permission}):security.authenticateSession(args);
   }
   const permission=(screenId,mode,action=null)=>security.permissionFor?.({screenId,mode,action})??null;
-  const insightPermission=scope=>['finance','commercial'].includes(scope)?'finance:read':'cattle:read';
+  const insightPermission=scope=>scope==='finance'?'finance:read':'cattle:read';
   return Object.freeze({
     async describe(auth=null){
       const access={};

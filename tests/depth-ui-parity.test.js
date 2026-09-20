@@ -31,7 +31,8 @@ test('logout revokes backend session instead of only clearing React state',async
 
 test('search routes every persisted product domain to a usable workspace',async()=>{
   const main=await source('../web/main.jsx');
-  for(const target of ['animals','lots','sanitary','reproduction','trades','finance','inventory','traceability','pastures','nutrition','tasks','data','iot'])assert.match(main,new RegExp(`navigate\\('${target}'`));
+  for(const target of ['animals','lots','sanitary','trades','finance','inventory','traceability','pastures','nutrition','tasks','data','iot'])assert.match(main,new RegExp(`navigate\\('${target}'`));
+  assert.match(main,/payload\.kind==='reproduction'\?'reproduction':'sanitary'/);
 });
 
 test('existing modules expose pasture, reproduction, sanitary, field, reporting, intelligence and commercial-finance depth',async()=>{

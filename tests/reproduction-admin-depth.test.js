@@ -32,10 +32,23 @@ test('professional reproduction manages genetics, semen doses, breeding seasons 
     assert.equal((await f.db.getRecord('cattle.reproduction-dose-stock','dose-1')).payload.quantityDoses,1);
     await assert.rejects(()=>service.adjustDoseStock({id:'dose-1',delta:-2},{actorId:'admin'}),/Insufficient semen doses/);
 
+    await service.adjustDoseStock({id:'dose-1',delta:2,reason:'Conferência física',occurredAt:'2026-10-11T12:00:00.000Z'},{actorId:'admin'});
+    let dose=await f.db.getRecord('cattle.reproduction-dose-stock','dose-1');
+    assert.equal(dose.payload.quantityDoses,3);
+    assert.equal(dose.payload.lastAdjustment.delta,2);
+    assert.equal(dose.payload.lastAdjustment.reason,'Conferência física');
+
+    await service.saveDoseStock({id:'dose-1',geneticsId:'gen-semen',batch:'B001',quantityDoses:3,minDoses:2,expiresAt:'2027-02-01T00:00:00.000Z',costPerDoseMinor:2600,active:false,notes:'Atualizado após inventário'},{actorId:'admin'});
+    dose=await f.db.getRecord('cattle.reproduction-dose-stock','dose-1');
+    assert.equal(dose.payload.active,false);
+    assert.equal(dose.payload.notes,'Atualizado após inventário');
+    assert.equal(dose.payload.lastAdjustment.delta,2);
+    assert.equal(dose.payload.lastAdjustment.reason,'Conferência física');
+
     await f.db.putRecord('cattle.events','check-1',{id:'check-1',kind:'reproduction',animalId:'cow-1',relatedAnimalId:null,type:'pregnancy-check',occurredAt:'2026-11-10T12:00:00.000Z',metadata:{result:'positive'}},{expectedVersion:0});
     const state=await service.load();
     assert.equal(state.genetics.length,2);
-    assert.equal(state.doseStocks[0].payload.quantityDoses,1);
+    assert.equal(state.doseStocks[0].payload.quantityDoses,3);
     assert.equal(state.seasons[0].payload.id,'season-26');
     assert.equal(state.efficiency.byProtocol.find(x=>x.key==='IATF 8 dias').conceptionRatePct,100);
     assert.equal(state.efficiency.byGenetics.find(x=>x.key==='gen-semen').conceptionRatePct,100);
@@ -89,6 +102,6 @@ test('desktop RPC and existing screens expose professional reproduction and user
   ]);
   const combined=files.join('\n');
   for(const method of ['reproductionAdmin','userAdmin'])assert.match(combined,new RegExp(method));
-  for(const id of ['professional-reproduction','genetics-register','semen-dose-stock','breeding-season','reproduction-efficiency','user-administration','permission-matrix'])assert.match(combined,new RegExp(`data-testid=["']${id}["']`));
-  for(const label of ['Estoque de doses','Estação de monta','Eficiência por protocolo','Eficiência por reprodutor','Eficiência por estação','Criar usuário','Perfis e permissões'])assert.match(combined,new RegExp(label));
+  for(const id of ['professional-reproduction','genetics-register','semen-dose-stock','semen-dose-adjustment','breeding-season','reproduction-efficiency','user-administration','permission-matrix'])assert.match(combined,new RegExp(`data-testid=["']${id}["']`));
+  for(const label of ['Estoque de doses','Ajustar estoque','Motivo do ajuste','Doses utilizadas','Estação de monta','Eficiência por protocolo','Eficiência por reprodutor','Eficiência por estação','Criar usuário','Perfis e permissões'])assert.match(combined,new RegExp(label));
 });

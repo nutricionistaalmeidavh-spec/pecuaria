@@ -58,10 +58,10 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
     trades:{kind:'trade-workflow',load:async()=>({rows:await repos.trades.list()}),actions:{async create(input,context={}){if(input?.type==='sale'){const result=await sellAnimals({...input,actorId:context.actorId??'system'});return result.trade;}const result=await repos.trades.save(createCattleTrade(input),{expectedVersion:0});await auditMutation({action:'cattle.trade.create',entityType:'trade',input,context,result});return result;}}},
     finance:{kind:'lot-finance',load:async({lotId=null}={})=>{const[entries,animals]=await Promise.all([finance.list(),repos.animals.list()]);const headCount=lotId?rows(animals).filter(animal=>animal.lotId===lotId&&animal.status==='active').length:0;return{rows:entries,metrics:lotId?cattleFinancialMetrics(rows(entries),{lotId,headCount}):null};},actions:{addCost:audited('cattle.finance.cost.add','finance-entry',input=>finance.save(createCattleCost(input),{expectedVersion:0})),fromTrade:audited('cattle.finance.from-trade','finance-entry',async({tradeId,id,lotId=null})=>{const trade=required(await repos.trades.get(tradeId),'Cattle trade');return finance.save(createCattleTradeEntry(trade.payload,{id,lotId}),{expectedVersion:0});})}},
     reports:{kind:'reports',load:async()=>({definitions:documents.definitions,issued:await persistence.listRecords('issued-documents')}),actions:{
-      csv:({type,...options})=>reporting.csv(type,options),
+      csv:async({type,...options})=>{const report=await reporting.build(type,options);return documents.buildCsv(type,report.rows);},
       issue:audited('cattle.report.issue','issued-document',async input=>{
         const {type,format='csv',id,...options}=input;
-        const content=format==='csv'?await reporting.csv(type,options):JSON.stringify(await reporting.build(type,options),null,2);
+        const report=await reporting.build(type,options);const content=format==='csv'?documents.buildCsv(type,report.rows).content:JSON.stringify(report,null,2);
         return documents.issue({id,type,format,content});
       })
     }},

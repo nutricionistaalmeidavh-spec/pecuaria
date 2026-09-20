@@ -4,7 +4,7 @@ import {createBrowserPersistence,createBrowserRecovery} from '../shared/packages
 import {createCattlePresentation} from '../src/presentation.js';
 import {createRpcBackend} from '../runtime/backend.mjs';
 import {getActionForm} from './action-config.js';
-import {ActionDialog,DesktopShell,StatusBanner,WorkspaceScreen} from './components.jsx';
+import {ActionDialog,DataTable,DesktopShell,StatusBanner,WorkspaceScreen} from './components.jsx';
 import {OverviewDashboard} from './dashboard.jsx';
 import {Icon} from './icons.jsx';
 import './styles.css';
@@ -51,6 +51,8 @@ function App(){
   const [hasUsers,setHasUsers]=useState(true);
   const [notice,setNotice]=useState(null);
   const [updateState,setUpdateState]=useState(null);
+  const [searchResults,setSearchResults]=useState(null);
+  const [alertResults,setAlertResults]=useState(null);
   const updates=globalThis.artisys?.updates??null;
 
   useEffect(()=>{getBackend().then(async value=>{setBackend(value);setHasUsers((await value.authState()).hasUsers)}).catch(error=>setNotice({tone:'error',text:error.message}))},[]);
@@ -87,8 +89,13 @@ function App(){
   const navigation=<>{meta.navigation.map(item=><button key={item.id} data-testid={`nav-${item.id}`} className={`nav-item ${item.id===screenId?'on':''}`} onClick={()=>navigate(item.id)}><Icon name={item.icon} size={19}/><span>{item.label}</span></button>)}</>;
   const brand=<div className="brand-lockup"><span className="brand-mark"><Icon name="beef" size={26}/></span><span><strong>{meta.brand.productName??meta.brand.name??'ArtiSys Pecuária'}</strong><small>Pecuária</small></span></div>;
 
-  return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Dashboard'} notificationCount={screenId==='overview'?(data?.alerts?.length??0):0} onLogout={()=>{setAuth(null);setMeta(null);setScreenId(null);setData(null)}}>
+  return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Dashboard'} notificationCount={screenId==='overview'?(data?.alerts?.length??0):0}
+    onSearch={async term=>{try{setSearchResults(await backend.search({term,auth}));setAlertResults(null)}catch(error){setNotice({tone:'error',text:error.message})}}}
+    onNotifications={async()=>{try{setAlertResults(await backend.alerts({auth}));setSearchResults(null)}catch(error){setNotice({tone:'error',text:error.message})}}}
+    onLogout={()=>{setAuth(null);setMeta(null);setScreenId(null);setData(null)}}>
     {notice&&<StatusBanner tone={notice.tone}>{notice.text}</StatusBanner>}
+    {searchResults&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Busca global</span><h2>Resultados</h2><p>{searchResults.length} registro(s) encontrado(s).</p></div><button className="ghost" onClick={()=>setSearchResults(null)}>Fechar</button></div><DataTable records={searchResults}/></section>}
+    {alertResults&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Central de alertas</span><h2>Pendências</h2><p>{alertResults.length} alerta(s) operacional(is).</p></div><button className="ghost" onClick={()=>setAlertResults(null)}>Fechar</button></div><DataTable records={alertResults}/></section>}
     <UpdatePanel updates={updates} state={updateState} onState={setUpdateState}/>
     {screenId==='settings'&&updates&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Aplicativo</span><h2>Atualizações</h2><p>Versão instalada: {updateState?.currentVersion??'—'}.</p></div><div className="actions"><button data-testid="check-updates" onClick={async()=>{setUpdateState(await updates.check())}}>Verificar atualizações</button></div></div>{updateState?.status==='current'&&<StatusBanner tone="success">Você está usando a versão mais recente.</StatusBanner>}{updateState?.status==='error'&&<StatusBanner tone="error">Não foi possível verificar atualizações agora. O sistema continua disponível offline.</StatusBanner>}</section>}
     {screenId==='overview'?<OverviewDashboard data={data} onNavigate={navigate}/>:<WorkspaceScreen screenId={screenId} screen={screen} icon={screenNavigation?.icon} records={rows} onAction={name=>{setAction(name);setNotice(null)}}/>}

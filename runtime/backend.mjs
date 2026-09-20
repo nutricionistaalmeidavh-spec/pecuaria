@@ -23,6 +23,8 @@ export function createRpcBackend({presentation}){
     login:input=>security.authenticate(input),
     validate:auth=>session(auth),
     logout:auth=>security.revoke(auth),
+    async search({term,auth,collections=null,limit=25}){await session(auth);return presentation.services.search.query({term,collections,limit});},
+    async alerts({auth}){await session(auth);return presentation.services.alerts.list();},
     async load({screenId,auth,context={}}){
       await session(auth,permission(screenId,'read'));
       return presentation.load(screenId,context);

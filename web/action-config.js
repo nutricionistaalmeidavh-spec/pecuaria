@@ -21,6 +21,7 @@ export const ACTION_FORMS=Object.freeze({
   }),
   animals:Object.freeze({
     save:form('Salvar animal',[field('id','ID'),field('tag','Brinco/identificação'),field('farmUnitId','Unidade/Fazenda'),field('lotId','Lote'),field('purpose','Finalidade','select',{options:[['beef','Corte'],['dairy','Leite'],['breeding','Reprodução']]}),field('sex','Sexo','select',{options:[['female','Fêmea'],['male','Macho'],['unknown','Não informado']]})]),
+    recordMilk:form('Registrar produção de leite',[field('id','ID do animal'),field('liters','Produção (litros)','number',{step:'0.1'}),field('measuredAt','Data/hora','datetime-local')],v=>({id:clean(v.id),liters:num(v.liters),measuredAt:dateTime(v.measuredAt)})),
     move:form('Mover animal',[field('id','ID do animal'),field('toLotId','Lote destino'),field('movedAt','Data/hora','datetime-local'),field('reason','Motivo')],v=>({id:clean(v.id),toLotId:clean(v.toLotId),movedAt:dateTime(v.movedAt),reason:clean(v.reason)||'management'})),
     lifecycle:form('Registrar ciclo de vida',[field('id','ID do animal'),field('type','Evento','select',{options:[['birth','Nascimento'],['death','Morte'],['sale','Venda'],['disposal','Baixa']]}),field('occurredAt','Data/hora','datetime-local'),field('reason','Motivo')],v=>({id:clean(v.id),type:v.type,occurredAt:dateTime(v.occurredAt),reason:clean(v.reason)||null}))
   }),
@@ -36,8 +37,15 @@ export const ACTION_FORMS=Object.freeze({
     fromTrade:form('Gerar financeiro da negociação',[field('tradeId','ID da negociação'),field('id','ID do lançamento'),field('lotId','Lote')])
   }),
   reports:Object.freeze({
-    csv:form('Gerar CSV',[field('type','Relatório','select',{options:[['animal-history','Histórico do animal'],['lot-kpis','Indicadores do lote'],['sanitary','Manejo sanitário']]})],v=>({type:v.type,rows:[]})),
-    issue:form('Emitir documento',[field('id','ID'),field('type','Tipo','select',{options:[['animal-history','Histórico do animal'],['lot-kpis','Indicadores do lote'],['sanitary','Manejo sanitário']]}),field('format','Formato','select',{options:[['csv','CSV'],['pdf','PDF']]}),field('content','Conteúdo','textarea')])
+    csv:form('Gerar CSV',[field('type','Relatório','select',{options:[['animal-history','Histórico do animal'],['lot-kpis','Indicadores do lote'],['sanitary','Manejo sanitário']]}),field('animalId','Animal (para histórico)'),field('lotId','Lote (opcional)')],v=>({type:v.type,animalId:clean(v.animalId)||undefined,lotId:clean(v.lotId)||undefined})),
+    issue:form('Emitir documento',[field('id','ID'),field('type','Tipo','select',{options:[['animal-history','Histórico do animal'],['lot-kpis','Indicadores do lote'],['sanitary','Manejo sanitário']]}),field('format','Formato','select',{options:[['csv','CSV'],['pdf','PDF']]}),field('animalId','Animal (para histórico)'),field('lotId','Lote (opcional)')],v=>({id:clean(v.id),type:v.type,format:v.format,animalId:clean(v.animalId)||undefined,lotId:clean(v.lotId)||undefined}))
+  }),
+  data:Object.freeze({
+    saveBreed:form('Cadastrar raça',[field('id','ID'),field('name','Nome'),field('species','Espécie')],v=>({id:clean(v.id),name:clean(v.name),species:clean(v.species)||'bovine'})),
+    saveCategory:form('Cadastrar categoria',[field('id','ID'),field('name','Nome'),field('purpose','Finalidade','select',{options:[['beef','Corte'],['dairy','Leite'],['breeding','Reprodução']]})],v=>({id:clean(v.id),name:clean(v.name),purpose:v.purpose})),
+    exportCollection:form('Exportar dados',[field('collection','Coleção','select',{options:[['cattle.lots','Lotes'],['cattle.animals','Animais'],['cattle.breeds','Raças'],['cattle.categories','Categorias'],['cattle.sanitary-protocols','Protocolos sanitários'],['cattle.events','Eventos'],['cattle.trades','Compras e vendas'],['cattle.finance','Financeiro']]})],v=>({collection:v.collection})),
+    validateImport:form('Validar importação JSON',[field('document','Documento JSON','textarea')],v=>({document:JSON.parse(v.document)})),
+    importCollection:form('Importar JSON validado',[field('document','Documento JSON','textarea')],v=>({document:JSON.parse(v.document)}))
   }),
   iot:Object.freeze({
     saveDevice:form('Adicionar ou atualizar dispositivo',[field('id','ID do dispositivo'),field('name','Nome'),field('profileId','Tipo de integração','select',{options:iotProfiles}),field('stationId','Estação/curral'),field('farmId','Fazenda'),field('enabled','Ativar automaticamente','select',{options:[['true','Sim'],['false','Não']]}),field('port','Porta serial/USB'),field('baudRate','Baud rate','number'),field('delimiter','Delimitador serial'),field('url','URL MQTT'),field('topics','Tópicos MQTT','list'),field('baseUrl','URL HTTP local'),field('path','Caminho HTTP'),field('pollIntervalMs','Intervalo HTTP (ms)','number'),field('username','Usuário'),field('password','Senha','password'),field('token','Token','password')],iotDevice),

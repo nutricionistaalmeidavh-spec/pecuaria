@@ -3,7 +3,8 @@ import {createEntityRepository} from '../shared/packages/vertical-persistence/sr
 import {createCattleShellModel} from './ui.js';
 import {createCattleRepositories} from './catalog.js';
 import {createCattleInvariantService} from './invariants.js';
-import {createCattleTrade,recordWeight,recordReproductionEvent} from './index.js';
+import {createCattleTrade,recordWeight,recordMilkProduction,recordReproductionEvent} from './index.js';
+import {createCattleBreed,createCattleCategory} from './catalog.js';
 import {moveAnimal,recordAnimalLifecycle,recordSanitaryEvent} from './operations.js';
 import {createCattleTradeEntry,createCattleCost,cattleFinancialMetrics} from './finance.js';
 import {createDocumentService} from './documents.js';
@@ -31,6 +32,7 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
   const search=createLocalSearchService(persistence);
   const alerts=createCattleAlertsService({persistence,recovery});
   const transfer=createCattleTransferService(persistence);
+  
   const reporting=createCattleReportingService(persistence);
   const dashboard=createCattleDashboardService({persistence,alerts});
   const sellAnimals=createSellAnimalsUseCase({persistence,audit});
@@ -46,13 +48,27 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
   const screens={
     overview:{kind:'livestock-dashboard',async load(){const snapshot=await dashboard.snapshot();return{cards:snapshot.kpis,primaryKpis:snapshot.primaryKpis,alerts:snapshot.alerts,performance:snapshot.performance,reproduction:snapshot.reproduction,sanitary:snapshot.sanitary,lotDistribution:snapshot.lotDistribution,finance:snapshot.finance,recentActivity:snapshot.recentActivity,layout:snapshot.layout};}},
     lots:{kind:'lot-board',load:async()=>({rows:await repos.lots.list()}),actions:{save:audited('cattle.lot.save','lot',(entity,options)=>repos.lots.save(entity,options??{})),remove:audited('cattle.lot.remove','lot',({id,expectedVersion})=>repos.lots.remove(id,{expectedVersion}))}},
-    animals:{kind:'animal-register',load:async()=>({rows:await repos.animals.list()}),actions:{save:audited('cattle.animal.save','animal',(entity,options)=>repos.animals.save(entity,options??{})),move:audited('cattle.animal.move','animal',async({id,...input})=>{await invariants.assertLotExists(input.toLotId);return mutateAnimal(id,moveAnimal,input);}),lifecycle:audited('cattle.animal.lifecycle','animal',({id,...input})=>mutateAnimal(id,recordAnimalLifecycle,input))}},
+    animals:{kind:'animal-register',load:async()=>({rows:await repos.animals.list()}),actions:{save:audited('cattle.animal.save','animal',(entity,options)=>repos.animals.save(entity,options??{})),recordMilk:audited('cattle.milk.record','animal',({id,...input})=>mutateAnimal(id,recordMilkProduction,input)),move:audited('cattle.animal.move','animal',async({id,...input})=>{await invariants.assertLotExists(input.toLotId);return mutateAnimal(id,moveAnimal,input);}),lifecycle:audited('cattle.animal.lifecycle','animal',({id,...input})=>mutateAnimal(id,recordAnimalLifecycle,input))}},
     weights:{kind:'weight-history',load:async()=>({rows:await repos.animals.list()}),actions:{record:audited('cattle.weight.record','animal',({id,...input})=>mutateAnimal(id,recordWeight,input))}},
     sanitary:{kind:'sanitary-workspace',async load(){const[protocols,events]=await Promise.all([repos.sanitaryProtocols.list(),repos.events.list()]);return{protocols,events:events.filter(record=>record.payload.kind==='sanitary')}} ,actions:{saveProtocol:audited('cattle.sanitary.protocol.save','sanitary-protocol',(entity,options)=>repos.sanitaryProtocols.save(entity,options??{})),record:audited('cattle.sanitary.record','sanitary-event',async input=>{await invariants.assertAnimalExists(input?.animalId);if(input?.protocolId)await invariants.assertProtocolExists(input.protocolId);const event=recordSanitaryEvent(input);return repos.events.save({...event,kind:'sanitary'},{expectedVersion:0});})}},
     reproduction:{kind:'reproduction-timeline',async load(){const events=await repos.events.list();return{rows:events.filter(record=>record.payload.kind==='reproduction')}} ,actions:{record:audited('cattle.reproduction.record','reproduction-event',async input=>{await invariants.assertAnimalExists(input?.animalId);if(input?.relatedAnimalId)await invariants.assertAnimalExists(input.relatedAnimalId);const event=recordReproductionEvent(input);return repos.events.save({...event,kind:'reproduction'},{expectedVersion:0});})}},
     trades:{kind:'trade-workflow',load:async()=>({rows:await repos.trades.list()}),actions:{async create(input,context={}){if(input?.type==='sale'){const result=await sellAnimals({...input,actorId:context.actorId??'system'});return result.trade;}const result=await repos.trades.save(createCattleTrade(input),{expectedVersion:0});await auditMutation({action:'cattle.trade.create',entityType:'trade',input,context,result});return result;}}},
     finance:{kind:'lot-finance',load:async({lotId=null}={})=>{const[entries,animals]=await Promise.all([finance.list(),repos.animals.list()]);const headCount=lotId?rows(animals).filter(animal=>animal.lotId===lotId&&animal.status==='active').length:0;return{rows:entries,metrics:lotId?cattleFinancialMetrics(rows(entries),{lotId,headCount}):null};},actions:{addCost:audited('cattle.finance.cost.add','finance-entry',input=>finance.save(createCattleCost(input),{expectedVersion:0})),fromTrade:audited('cattle.finance.from-trade','finance-entry',async({tradeId,id,lotId=null})=>{const trade=required(await repos.trades.get(tradeId),'Cattle trade');return finance.save(createCattleTradeEntry(trade.payload,{id,lotId}),{expectedVersion:0});})}},
-    reports:{kind:'reports',load:async()=>({definitions:documents.definitions,issued:await persistence.listRecords('issued-documents')}),actions:{csv:({type,rows})=>documents.buildCsv(type,rows),issue:audited('cattle.report.issue','issued-document',input=>documents.issue(input))}},
+    reports:{kind:'reports',load:async()=>({definitions:documents.definitions,issued:await persistence.listRecords('issued-documents')}),actions:{
+      csv:({type,...options})=>reporting.csv(type,options),
+      issue:audited('cattle.report.issue','issued-document',async input=>{
+        const {type,format='csv',id,...options}=input;
+        const content=format==='csv'?await reporting.csv(type,options):JSON.stringify(await reporting.build(type,options),null,2);
+        return documents.issue({id,type,format,content});
+      })
+    }},
+    data:{kind:'data-tools',async load(){const [breeds,categories]=await Promise.all([repos.breeds.list(),repos.categories.list()]);return{rows:[...breeds,...categories]};},actions:{
+      saveBreed:audited('cattle.breed.save','breed',(input,options)=>repos.breeds.save(createCattleBreed(input),options??{})),
+      saveCategory:audited('cattle.category.save','category',(input,options)=>repos.categories.save(createCattleCategory(input),options??{})),
+      exportCollection:({collection})=>transfer.exportCollection(collection),
+      validateImport:({document})=>transfer.importCollection(document,{mode:'validate'}),
+      importCollection:audited('cattle.transfer.import','transfer',({document})=>transfer.importCollection(document,{mode:'append'}))
+    }},
     iot:{
       kind:'iot-devices',
       load:()=>iot.load(),

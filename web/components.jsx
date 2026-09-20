@@ -3,7 +3,7 @@ import {Icon} from './icons.jsx';
 
 export function StatusBanner({tone='info',children}){return <div className={`status ${tone}`} role={tone==='error'?'alert':'status'}>{children}</div>}
 
-export function DesktopShell({brand,navigation,title,children,onLogout,notificationCount=0}){
+export function DesktopShell({brand,navigation,title,children,onLogout,notificationCount=0,onSearch=null,onNotifications=null}){
   const [mobileNavOpen,setMobileNavOpen]=useState(false);
   useEffect(()=>{
     const onKeyDown=event=>{if(event.key==='Escape')setMobileNavOpen(false)};
@@ -21,9 +21,9 @@ export function DesktopShell({brand,navigation,title,children,onLogout,notificat
       <header className="topbar">
         <button data-testid="mobile-nav-toggle" className="mobile-nav-toggle" type="button" aria-label="Abrir menu" aria-expanded={mobileNavOpen} onClick={()=>setMobileNavOpen(open=>!open)}><Icon name="menu" size={21}/></button>
         <div className="topbar-title"><small>ArtiSys Pecuária</small><h1>{title}</h1></div>
-        <label className="global-search"><Icon name="search" size={18}/><input aria-label="Busca global" placeholder="Buscar animal, lote ou informação..."/></label>
+        <form className="global-search" onSubmit={e=>{e.preventDefault();const term=new FormData(e.currentTarget).get("term");if(term&&onSearch)onSearch(String(term))}}><Icon name="search" size={18}/><input name="term" aria-label="Busca global" placeholder="Buscar animal, lote ou informação..."/></form>
         <div className="topbar-actions">
-          <button className="notification-button" type="button" aria-label={`${notificationCount} alertas`}><Icon name="bell" size={19}/>{notificationCount>0&&<span>{notificationCount>99?'99+':notificationCount}</span>}</button>
+          <button className="notification-button" type="button" aria-label={`${notificationCount} alertas`} onClick={onNotifications}><Icon name="bell" size={19}/>{notificationCount>0&&<span>{notificationCount>99?'99+':notificationCount}</span>}</button>
           <div className="user-chip"><span className="avatar">AD</span><span><strong>Administrador</strong><small>Operação local</small></span></div>
           <button className="ghost logout-button" onClick={onLogout}>Sair</button>
         </div>
@@ -60,6 +60,7 @@ const workspaceDescriptions={
   trades:'Registre compras e vendas vinculadas ao rebanho.',
   finance:'Acompanhe custos e receitas relacionados à operação pecuária.',
   reports:'Emita relatórios zootécnicos e documentos operacionais.',
+  data:'Gerencie raças e categorias e faça exportação, validação e importação segura de dados.',
   iot:'Configure integrações locais com RFID, balanças e dispositivos compatíveis.',
   settings:'Administre backup, restauração e preferências locais do sistema.'
 };

@@ -12,4 +12,4 @@ const updates=Object.freeze({
     return()=>ipcRenderer.removeListener('artisys:updates:status',listener);
   }
 });
-contextBridge.exposeInMainWorld('artisys',Object.freeze({...Object.fromEntries(['describe','authState','bootstrap','login','validate','logout','search','alerts','audit','insights','simulateSale','references','load','action'].map(n=>[n,p=>call(n,p)])),updates}));
+contextBridge.exposeInMainWorld('artisys',Object.freeze({...Object.fromEntries(['describe','authState','bootstrap','login','validate','logout','search','alerts','audit','insights','simulateSale','reproductionAdmin','userAdmin','references','load','action'].map(n=>[n,p=>call(n,p)])),updates}));

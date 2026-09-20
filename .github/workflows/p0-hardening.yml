@@ -11,6 +11,7 @@ on:
       - depth/finance-pasture-history
       - depth/reproduction-admin
       - depth/field-mobile-offline
+      - p1-operational-depth
       - main
   workflow_dispatch:
 

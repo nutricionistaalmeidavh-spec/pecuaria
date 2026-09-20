@@ -7,6 +7,8 @@ export function createCattleBreed({id,name,species='bovine'}={}){
   return Object.freeze({id:text(id,'Breed id'),name:text(name,'Breed name'),species:text(species,'Species')});
 }
 
+export function createFarmUnit({id,name,registration=null,location=null}={}){return Object.freeze({id:text(id,'Farm unit id'),name:text(name,'Farm unit name'),registration:registration?.trim?.()||null,location:location?.trim?.()||null})}
+
 export function createCattleCategory({id,name,purpose}={}){
   return Object.freeze({id:text(id,'Category id'),name:text(name,'Category name'),purpose:text(purpose,'Purpose')});
 }
@@ -17,6 +19,7 @@ export function createSanitaryProtocol({id,name,productItemId,dose,unit,interval
 
 function createBaseRepositories(persistence){
   return Object.freeze({
+    farmUnits:createEntityRepository(persistence,{collection:'cattle.farm-units'}),
     lots:createEntityRepository(persistence,{collection:'cattle.lots'}),
     animals:createEntityRepository(persistence,{collection:'cattle.animals'}),
     breeds:createEntityRepository(persistence,{collection:'cattle.breeds'}),

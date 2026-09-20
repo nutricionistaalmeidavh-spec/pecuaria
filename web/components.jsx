@@ -33,19 +33,35 @@ export function DesktopShell({brand,navigation,title,children,onLogout,notificat
   </div>;
 }
 
-const domainLabels={id:'ID',name:'Nome',tag:'Brinco',lotId:'Lote',farmUnitId:'Fazenda / unidade',purpose:'Finalidade',status:'Status',sex:'Sexo',weightKg:'Peso (kg)',measuredAt:'Pesagem em',animalId:'Animal',relatedAnimalId:'Animal relacionado',kind:'Tipo',type:'Evento',occurredAt:'Data',performedAt:'Realizado em',nextDueAt:'Próxima data',protocolId:'Protocolo',productItemId:'Produto / insumo',dose:'Dose',unit:'Unidade',partyId:'Cliente / fornecedor',animalIds:'Animais',totalAmountMinor:'Valor total',amountMinor:'Valor',description:'Descrição',category:'Categoria',profileId:'Integração',stationId:'Estação / curral',farmId:'Fazenda',enabled:'Ativo'};
+const domainLabels={id:'ID',name:'Nome',tag:'Brinco',lotId:'Lote',farmUnitId:'Fazenda / unidade',purpose:'Finalidade',status:'Status',sex:'Sexo',weightKg:'Peso (kg)',measuredAt:'Pesagem em',animalId:'Animal',relatedAnimalId:'Animal relacionado',kind:'Tipo',type:'Evento',occurredAt:'Data',performedAt:'Realizado em',nextDueAt:'Próxima data',withdrawalUntil:'Fim da carência',protocolId:'Protocolo',productItemId:'Produto / insumo',productBatch:'Lote/partida',activeIngredient:'Princípio ativo',dose:'Dose',unit:'Unidade',partyId:'Cliente / fornecedor',animalIds:'Animais',totalAmountMinor:'Valor líquido',amountMinor:'Valor',grossMinor:'Valor bruto',netMinor:'Valor líquido',liveArrobas:'@ peso vivo',carcassArrobas:'@ carcaça',carcassYieldPct:'Rendimento carcaça (%)',description:'Descrição',category:'Categoria',profileId:'Integração',stationId:'Estação / curral',farmId:'Fazenda',enabled:'Ativo',roles:'Papéis',document:'CPF/CNPJ',phone:'Telefone',email:'E-mail'};
 const humanize=key=>domainLabels[key]??String(key).replace(/([A-Z])/g,' $1').replace(/[-_]/g,' ').replace(/^./,letter=>letter.toUpperCase());
 
 export function DataTable({records=[]}){
-  const rows=records.map(v=>v?.payload??v);
+  const rows=records.map(v=>{
+    const row=v?.payload??v;
+    const settlement=row?.metadata?.settlement;
+    if(!settlement)return row;
+    return {
+      id:row.id,
+      type:row.type,
+      partyId:row.partyId,
+      carcassArrobas:settlement.carcassArrobas,
+      carcassYieldPct:settlement.carcassYieldPct,
+      grossMinor:settlement.grossMinor,
+      netMinor:settlement.netMinor,
+      totalAmountMinor:row.totalAmountMinor,
+      ...row
+    };
+  });
   const columns=useMemo(()=>[...new Set(rows.flatMap(r=>Object.keys(r??{})))].filter(k=>!['metadata','passwordHash','passwordSalt','tokenHash'].includes(k)).slice(0,8),[records]);
   if(!rows.length)return <div className="empty"><strong>Nenhum registro</strong><span>Os dados aparecerão aqui quando forem cadastrados.</span></div>;
   const render=(v,key)=>{
     if(v==null)return '—';
-    if((key==='amountMinor'||key==='totalAmountMinor')&&Number.isFinite(Number(v)))return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)/100);
+    if(['amountMinor','totalAmountMinor','grossMinor','netMinor','costMinor'].includes(key)&&Number.isFinite(Number(v)))return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)/100);
     if(typeof v==='boolean')return v?'Sim':'Não';
     if(Array.isArray(v))return v.join(', ');
     if(typeof v==='object')return JSON.stringify(v);
+    if(key==='carcassYieldPct'&&Number.isFinite(Number(v)))return `${Number(v).toFixed(2)}%`;
     return String(v);
   };
   return <div className="table-wrap" data-testid="data-table"><table className="responsive-table"><thead><tr>{columns.map(c=><th key={c}>{humanize(c)}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={row.id??i}>{columns.map(c=><td key={c} data-label={humanize(c)}>{render(row[c],c)}</td>)}</tr>)}</tbody></table></div>;
@@ -55,12 +71,12 @@ const workspaceDescriptions={
   lots:'Organize grupos de manejo e acompanhe a distribuição do rebanho.',
   animals:'Consulte identificação, lote, finalidade e ciclo de vida dos animais.',
   weights:'Registre pesagens e preserve o histórico individual de desempenho.',
-  sanitary:'Centralize protocolos, aplicações e próximos manejos sanitários.',
-  reproduction:'Acompanhe cobertura, diagnóstico, parto e desmame.',
-  trades:'Registre compras e vendas vinculadas ao rebanho.',
+  sanitary:'Centralize protocolos, aplicações, estoque, custos e períodos de carência sanitária.',
+  reproduction:'Acompanhe cobertura, diagnóstico, perdas, parto, desmame e indicadores reprodutivos.',
+  trades:'Registre compras e vendas com fechamento por peso vivo, rendimento e arroba de carcaça.',
   finance:'Acompanhe custos e receitas relacionados à operação pecuária.',
   reports:'Emita relatórios zootécnicos e documentos operacionais.',
-  data:'Gerencie raças e categorias e faça exportação, validação e importação segura de dados.',
+  data:'Gerencie fazendas, raças, categorias, contatos e faça exportação, validação e importação segura de dados.',
   iot:'Configure integrações locais com RFID, balanças e dispositivos compatíveis.',
   settings:'Administre backup, restauração e preferências locais do sistema.'
 };
@@ -91,5 +107,7 @@ export function AnimalDetail({detail,onClose}){if(!detail?.animal)return null;co
 
 export function CorralFlow({animals=[],onRecord}){const [animalId,setAnimalId]=useState('');const [weight,setWeight]=useState('');const animal=animals.map(x=>x.payload??x).find(x=>x.id===animalId);const previous=animal?.weights?.at(-1)?.weightKg??null;return <section className="panel" data-testid="corral-flow"><div className="panel-heading"><div><span className="eyebrow">Curral</span><h2>Pesagem rápida</h2><p>Identifique, confira o histórico e registre o próximo peso.</p></div></div><div className="form-grid"><label><span>Animal</span><select value={animalId} onChange={e=>setAnimalId(e.target.value)}><option value="">Selecione</option>{animals.map(r=>{const a=r.payload??r;return <option key={a.id} value={a.id}>{a.tag??a.name??a.id}</option>})}</select></label><label><span>Novo peso (kg)</span><input type="number" step="0.1" value={weight} onChange={e=>setWeight(e.target.value)}/></label></div>{animal&&<div className="mini-metrics"><div><span>Peso anterior</span><strong>{previous??'—'} kg</strong></div><div><span>GMD atual</span><strong>{animal.dailyGainKg==null?'—':`${Number(animal.dailyGainKg).toFixed(3)} kg/dia`}</strong></div><div><span>Diferença</span><strong>{previous!=null&&weight?`${(Number(weight)-previous).toFixed(1)} kg`:'—'}</strong></div></div>}<div className="actions"><button className="primary" disabled={!animalId||!Number(weight)} onClick={()=>onRecord({id:animalId,weightKg:Number(weight),measuredAt:new Date().toISOString()}).then(()=>{setWeight('');setAnimalId('')})}>Registrar e próximo</button></div></section>}
 
-export function FinanceMetrics({metrics}){if(!metrics)return null;const money=v=>v==null?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)/100);return <section className="panel" data-testid="finance-metrics"><div className="panel-heading"><div><span className="eyebrow">Economia produtiva</span><h2>Indicadores do lote</h2></div></div><div className="stat-grid"><article><span>Custo/cabeça</span><strong>{money(metrics.costPerHeadMinor)}</strong></article><article><span>Custo/kg ganho</span><strong>{money(metrics.costPerKgGainMinor)}</strong></article><article><span>Custo/@</span><strong>{money(metrics.costPerArrobaMinor)}</strong></article><article><span>Margem</span><strong>{money(metrics.marginMinor)}</strong></article></div></section>}
-export function ReproductionSummary({records=[]}){const rows=records.map(r=>r.payload??r);const upcoming=rows.filter(r=>r.metadata?.expectedCalvingAt);return <section className="panel" data-testid="reproduction-summary"><div className="panel-heading"><div><span className="eyebrow">Calendário reprodutivo</span><h2>Previsões e eventos</h2><p>{upcoming.length} parto(s) com previsão registrada.</p></div></div><DataTable records={upcoming.map(r=>({animalId:r.animalId,type:r.type,expectedCalvingAt:r.metadata.expectedCalvingAt,result:r.metadata.result??''}))}/></section>}
+export function FinanceMetrics({metrics}){if(!metrics)return null;const money=v=>v==null?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)/100);return <section className="panel" data-testid="finance-metrics"><div className="panel-heading"><div><span className="eyebrow">Economia produtiva</span><h2>Indicadores do lote</h2></div></div><div className="stat-grid"><article><span>Custo/cabeça</span><strong>{money(metrics.costPerHeadMinor)}</strong></article><article><span>Custo/kg ganho</span><strong>{money(metrics.costPerKgGainMinor)}</strong></article><article><span>Custo/@ peso vivo</span><strong>{money(metrics.costPerLiveArrobaMinor??metrics.costPerArrobaMinor)}</strong></article><article><span>Margem</span><strong>{money(metrics.marginMinor)}</strong></article></div></section>}
+
+const percent=value=>value==null?'—':`${Number(value).toFixed(1)}%`;
+export function ReproductionSummary({records=[],metrics=null}){const rows=records.map(r=>r.payload??r);const upcoming=rows.filter(r=>r.metadata?.expectedCalvingAt);return <section className="panel" data-testid="reproduction-summary"><div className="panel-heading"><div><span className="eyebrow">Gestão reprodutiva</span><h2>Indicadores e previsões</h2><p>{upcoming.length} parto(s) com previsão registrada.</p></div></div>{metrics&&<div className="stat-grid" data-testid="reproduction-metrics"><article><span>Taxa de serviço</span><strong>{percent(metrics.serviceRatePct)}</strong></article><article><span>Taxa de concepção</span><strong>{percent(metrics.conceptionRatePct)}</strong></article><article><span>Taxa de prenhez</span><strong>{percent(metrics.pregnancyRatePct)}</strong></article><article><span>Perda gestacional</span><strong>{percent(metrics.pregnancyLossRatePct)}</strong></article><article><span>Taxa de parto</span><strong>{percent(metrics.calvingRatePct)}</strong></article><article><span>Taxa de desmame</span><strong>{percent(metrics.weaningRatePct)}</strong></article></div>}<DataTable records={upcoming.map(r=>({animalId:r.animalId,type:r.type,expectedCalvingAt:r.metadata.expectedCalvingAt,result:r.metadata.result??''}))}/></section>}

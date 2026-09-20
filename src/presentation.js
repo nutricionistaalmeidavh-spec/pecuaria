@@ -17,6 +17,7 @@ import {createCattleReportingService} from './services/reporting.js';
 import {createCattleDashboardService} from './services/dashboard.js';
 import {createSellAnimalsUseCase} from './use-cases/sell-animals.js';
 import {createIoTService} from './iot/service.js';
+import {createCattlePdfService} from './product-pdf.js';
 import {createP1Repositories,createTraceabilityRecord,createInventoryItem,createPasture,createNutritionPlan,createManagementTask,createInventoryMovement,createPastureOccupancy,nutritionEconomics} from './p1.js';
 
 const rows=records=>records.map(record=>record.payload);
@@ -29,6 +30,7 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
   const invariants=createCattleInvariantService({repos});
   const finance=createEntityRepository(persistence,{collection:'cattle.finance'});
   const documents=createDocumentService(persistence);
+  const pdf=createCattlePdfService({documents});
   const audit=providedAudit??createAuditService(persistence,{productId:'agro-pecuaria'});
   const security=createSecurityService(persistence,{audit});
   const search=createLocalSearchService(persistence);
@@ -65,9 +67,10 @@ export function createCattlePresentation({persistence,localRuntime=null,recovery
     finance:{kind:'lot-finance',load:async({lotId=null}={})=>{const[entries,animals]=await Promise.all([finance.list(),repos.animals.list()]);const headCount=lotId?rows(animals).filter(animal=>animal.lotId===lotId&&animal.status==='active').length:0;return{rows:entries,metrics:lotId?cattleProductionEconomics(rows(entries),{lotId,animals:rows(animals)}):null};},actions:{addCost:audited('cattle.finance.cost.add','finance-entry',input=>finance.save(createCattleCost(input),{expectedVersion:0})),fromTrade:audited('cattle.finance.from-trade','finance-entry',async({tradeId,id,lotId=null})=>{const trade=required(await repos.trades.get(tradeId),'Cattle trade');return finance.save(createCattleTradeEntry(trade.payload,{id,lotId}),{expectedVersion:0});})}},
     reports:{kind:'reports',load:async()=>({definitions:documents.definitions,issued:await persistence.listRecords('issued-documents')}),actions:{
       csv:async({type,...options})=>{const report=await reporting.build(type,options);return documents.buildCsv(type,report.rows);},
+      pdf:async({type,title=null,...options})=>{const report=await reporting.build(type,options);return pdf.build(type,{title,rows:report.rows});},
       issue:audited('cattle.report.issue','issued-document',async input=>{
         const {type,format='csv',id,...options}=input;
-        const report=await reporting.build(type,options);const content=format==='csv'?documents.buildCsv(type,report.rows).content:JSON.stringify(report,null,2);
+        const report=await reporting.build(type,options);let content;if(format==='csv')content=documents.buildCsv(type,report.rows).content;else if(format==='pdf')content=(await pdf.build(type,{rows:report.rows})).content;else content=JSON.stringify(report,null,2);
         return documents.issue({id,type,format,content});
       })
     }},

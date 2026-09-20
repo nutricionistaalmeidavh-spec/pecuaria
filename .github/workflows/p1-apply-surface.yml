@@ -23,13 +23,19 @@ jobs:
         with:
           node-version: '22'
       - name: Apply deterministic P1 patch
+        shell: bash
         run: |
-          case "${{ github.event.head_commit.modified }} ${{ github.event.head_commit.added }}" in
-            *apply-p1c-surface.mjs*) node tooling/apply-p1c-surface.mjs ;;
-            *apply-p1b-surface.mjs*) node tooling/apply-p1b-surface.mjs ;;
-            *apply-p1a-ui.mjs*) node tooling/apply-p1a-ui.mjs ;;
-            *) node tooling/apply-p1a-surface.mjs ;;
-          esac
+          changed="$(git diff-tree --no-commit-id --name-only -r HEAD)"
+          echo "$changed"
+          if grep -q '^tooling/apply-p1c-surface.mjs$' <<<"$changed"; then
+            node tooling/apply-p1c-surface.mjs
+          elif grep -q '^tooling/apply-p1b-surface.mjs$' <<<"$changed"; then
+            node tooling/apply-p1b-surface.mjs
+          elif grep -q '^tooling/apply-p1a-ui.mjs$' <<<"$changed"; then
+            node tooling/apply-p1a-ui.mjs
+          else
+            node tooling/apply-p1a-surface.mjs
+          fi
       - name: Commit generated source changes
         run: |
           if git diff --quiet; then echo "No changes"; exit 0; fi

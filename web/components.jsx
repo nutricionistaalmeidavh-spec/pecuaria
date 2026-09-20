@@ -60,6 +60,7 @@ const workspaceDescriptions={
   trades:'Registre compras e vendas vinculadas ao rebanho.',
   finance:'Acompanhe custos e receitas relacionados à operação pecuária.',
   reports:'Emita relatórios zootécnicos e documentos operacionais.',
+  data:'Gerencie raças e categorias e faça exportação, validação e importação segura de dados.',
   iot:'Configure integrações locais com RFID, balanças e dispositivos compatíveis.',
   settings:'Administre backup, restauração e preferências locais do sistema.'
 };

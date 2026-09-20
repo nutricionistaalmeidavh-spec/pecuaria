@@ -11,14 +11,32 @@ export function createCattleAlertsService({persistence,recovery=null,now=()=>new
       const events=await persistence.listRecords('cattle.events');
       for(const record of events){
         const event=record.payload;
-        if(event?.kind!=='sanitary'||!event.nextDueAt)continue;
+        if(event?.kind!=='sanitary')continue;
+
+        const appliedAt=Date.parse(event?.occurredAt??'');
+        const withdrawal=Date.parse(event?.withdrawalUntil??'');
+        if(Number.isFinite(withdrawal)&&withdrawal>currentMs&&(!Number.isFinite(appliedAt)||appliedAt<=currentMs)){
+          alerts.push(Object.freeze({
+            id:`sanitary-withdrawal:${record.id}`,
+            kind:'sanitary-withdrawal-active',
+            severity:'warning',
+            entityType:'sanitary-event',
+            entityId:record.id,
+            animalId:event.animalId??null,
+            dueAt:new Date(withdrawal).toISOString(),
+            target:'sanitary',
+            targetId:event.animalId??record.id
+          }));
+        }
+
+        if(!event.nextDueAt)continue;
         const due=Date.parse(event.nextDueAt);
         if(!Number.isFinite(due))continue;
         const days=(due-currentMs)/DAY;
         if(days<0){
           alerts.push(Object.freeze({id:`sanitary-overdue:${record.id}`,kind:'sanitary-overdue',severity:'warning',entityType:'sanitary-event',entityId:record.id,animalId:event.animalId??null,dueAt:iso(event.nextDueAt),target:'sanitary',targetId:event.animalId??record.id}));
         }else if(days<=sanitaryUpcomingDays){
-          alerts.push(Object.freeze({id:`sanitary-upcoming:${record.id}`,kind:'sanitary-upcoming',severity:'info',entityType:'sanitary-event',entityId:record.id,animalId:event.animalId??null,dueAt:iso(event.nextDueAt)}));
+          alerts.push(Object.freeze({id:`sanitary-upcoming:${record.id}`,kind:'sanitary-upcoming',severity:'info',entityType:'sanitary-event',entityId:record.id,animalId:event.animalId??null,dueAt:iso(event.nextDueAt),target:'sanitary',targetId:event.animalId??record.id}));
         }
       }
 

@@ -38,20 +38,21 @@ async function seedFarmLot(page){
 test('finance journey creates a title, partially settles it and reverses the settlement',async({page})=>{
   await login(page);
   await openAction(page,'finance','saveTitle');
-  for(const [name,value] of Object.entries({id:'title-int',direction:'payable',description:'Título integrado',originalAmountMinor:'10000',issuedAt:'2026-09-21',dueAt:'2026-09-30'}))await fill(page,name,value);
+  for(const [name,value] of Object.entries({direction:'payable',description:'Título integrado',originalAmountMinor:'100,00',issuedAt:'2026-09-21',dueAt:'2026-09-30'}))await fill(page,name,value);
   await submit(page);
-  await expect(page.getByTestId('finance-titles')).toContainText('Título integrado');
-  await expect(page.getByTestId('finance-titles')).toContainText('Aberto');
+  const titles=page.getByTestId('finance-titles');
+  await expect(titles).toContainText('Título integrado');
+  await expect(titles).toContainText('Aberto');
 
-  await openAction(page,'finance','settleTitle');
-  for(const [name,value] of Object.entries({id:'settlement-int',operationId:'settlement-op-int',titleId:'title-int',amountMinor:'2500',occurredAt:'2026-09-21T10:00'}))await fill(page,name,value);
-  await submit(page);
-  await expect(page.getByTestId('finance-titles')).toContainText('Parcial');
+  await titles.getByRole('button',{name:'Baixar'}).first().click();
+  const settlement=page.getByTestId('finance-context-settle');
+  await settlement.getByLabel('Valor (R$)').fill('25,00');
+  await settlement.getByRole('button',{name:'Confirmar baixa'}).click();
+  await expect(titles).toContainText('Parcial');
 
-  await openAction(page,'finance','reverseSettlement');
-  for(const [name,value] of Object.entries({id:'reversal-int',operationId:'reversal-op-int',settlementId:'settlement-int',occurredAt:'2026-09-21T11:00',reason:'Correção E2E'}))await fill(page,name,value);
-  await submit(page);
-  await expect(page.getByTestId('finance-titles')).toContainText('Aberto');
+  const reversals=page.getByTestId('finance-context-reverse');
+  await reversals.getByRole('button',{name:'Estornar'}).first().click();
+  await expect(titles).toContainText('Aberto');
   await expect(page.getByTestId('finance-forecast')).toBeVisible();
 });
 

@@ -23,16 +23,23 @@ export async function navigate(page,screen){
   await expect(nav).toHaveClass(/on/);
 }
 
-async function setField(locator,value){
+function uiFieldValue(name,value){
+  if(!name.endsWith('Minor')||value==null||Array.isArray(value))return value;
+  const minor=Number(value);
+  return Number.isFinite(minor)?(minor/100).toFixed(2):value;
+}
+
+async function setField(locator,value,name=''){
   const tag=await locator.evaluate(el=>el.tagName);
+  const normalized=uiFieldValue(name,value);
   if(tag==='SELECT'){
     const multiple=await locator.evaluate(el=>el.multiple);
-    const values=Array.isArray(value)?value.map(String):[String(value)];
+    const values=Array.isArray(normalized)?normalized.map(String):[String(normalized)];
     await locator.selectOption(multiple?values:values[0]);
     return;
   }
-  if(value==null)return;
-  await locator.fill(String(value));
+  if(normalized==null)return;
+  await locator.fill(String(normalized));
 }
 
 export async function runAction(page,screen,action,values={},options={}){
@@ -43,7 +50,7 @@ export async function runAction(page,screen,action,values={},options={}){
   for(const [name,value] of Object.entries(values)){
     const field=page.getByTestId(`field-${name}`);
     await expect(field,`${screen}.${action}.${name}`).toBeVisible();
-    await setField(field,value);
+    await setField(field,value,name);
   }
   await page.getByTestId('action-submit').click();
   if(options.expectError){
@@ -107,6 +114,10 @@ export async function seedParty(page,id='party-e2e'){
 
 export async function expectRecord(page,collection,id,assertion){
   await expect.poll(async()=>openDbRecord(page,collection,id)).not.toBeNull();
+  // Field sync updates the UI from the applied bundle before the browser persistence
+  // queue is necessarily observable through a separate IndexedDB connection.
+  // Give that queue one short settle window before asserting durable state.
+  await page.waitForTimeout(250);
   const record=await openDbRecord(page,collection,id);
   if(assertion)await assertion(record);
   return record;

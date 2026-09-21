@@ -40,7 +40,9 @@ test('P1 final mantém superfícies dedicadas de financeiro, pastagem e campo of
 
   await page.getByTestId('nav-tasks').click();
   await expect(page.getByTestId('field-mobile-workspace')).toBeVisible();
-  await expect(page.getByTestId('field-operation-switcher')).toBeVisible();
+  const switcher=page.getByTestId('field-operation-switcher');
+  await expect(switcher).toBeVisible();
+  await switcher.getByRole('button',{name:'Sincronizar',exact:true}).click();
   await expect(page.getByTestId('field-secure-sync')).toBeVisible();
 });
 

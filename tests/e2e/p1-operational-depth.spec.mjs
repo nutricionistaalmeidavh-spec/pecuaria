@@ -98,7 +98,7 @@ test('field workspace remains touch-usable on mobile without horizontal overflow
   await switcher.getByRole('button',{name:'Nascimento',exact:true}).click();
   await expect(page.getByTestId('field-quick-birth').getByRole('button',{name:'Registrar nascimento'})).toBeVisible();
   await switcher.getByRole('button',{name:'Sincronizar',exact:true}).click();
-  await expect(page.getByTestId('field-sync')).toBeVisible();
+  await expect(page.getByTestId('field-secure-sync')).toBeVisible();
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth);
   expect(overflow).toBe(false);
   await expect(page.locator('[data-testid="action-json"]')).toHaveCount(0);

@@ -12,6 +12,7 @@ on:
       - depth/reproduction-admin
       - depth/field-mobile-offline
       - p1-operational-depth
+      - ui-operational-polish
       - main
   workflow_dispatch:
 

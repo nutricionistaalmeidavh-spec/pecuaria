@@ -8,6 +8,7 @@ on:
       - tooling/apply-p1a-ui.mjs
       - tooling/apply-p1b-surface.mjs
       - tooling/apply-p1c-surface.mjs
+      - tooling/apply-p1d-integration.mjs
 
 permissions:
   contents: write
@@ -27,7 +28,9 @@ jobs:
         run: |
           changed="$(git diff-tree --no-commit-id --name-only -r HEAD)"
           echo "$changed"
-          if grep -q '^tooling/apply-p1c-surface.mjs$' <<<"$changed"; then
+          if grep -q '^tooling/apply-p1d-integration.mjs$' <<<"$changed"; then
+            node tooling/apply-p1d-integration.mjs
+          elif grep -q '^tooling/apply-p1c-surface.mjs$' <<<"$changed"; then
             node tooling/apply-p1c-surface.mjs
           elif grep -q '^tooling/apply-p1b-surface.mjs$' <<<"$changed"; then
             node tooling/apply-p1b-surface.mjs
@@ -42,5 +45,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "feat: expose P1 operational surface"
+          git commit -m "feat: integrate P1 operational depth"
           git push origin HEAD:p1-operational-depth

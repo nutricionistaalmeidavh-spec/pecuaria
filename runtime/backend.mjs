@@ -83,6 +83,7 @@ export function createRpcBackend({presentation,persistence=null}){
       if(operation==='quick'){
         const authorized=await session(auth,'cattle:write');
         const prepared=await fieldSynchronization.prepareQuick({...input,actorId:authorized.user.id});
+        await session(auth,permission(prepared.command.screenId,'write',prepared.command.action));
         try{
           const result=await presentation.action(prepared.command.screenId,prepared.command.action,prepared.command.input,{actorId:authorized.user.id,fieldOperationId:prepared.operation.id});
           await fieldSynchronization.markQuickApplied(prepared.operation.id);
@@ -94,13 +95,25 @@ export function createRpcBackend({presentation,persistence=null}){
       }
       if(operation==='importBundle'){
         const authorized=await session(auth,'cattle:write');
-        const result=await fieldSynchronization.importBundle(input.bundle,{apply:command=>presentation.action(command.screenId,command.action,command.input,{actorId:authorized.user.id,fieldSync:true})});
+        const result=await fieldSynchronization.importBundle(input.bundle,{apply:async command=>{await session(auth,permission(command.screenId,'write',command.action));return presentation.action(command.screenId,command.action,command.input,{actorId:authorized.user.id,fieldSync:true});}});
         await presentation.services.audit?.append?.({actorId:authorized.user.id,action:'field.sync.import',entityType:'field-device',entityId:result.state.deviceId,metadata:{applied:result.operations.applied,skipped:result.operations.skipped,conflicts:result.operations.conflicts,snapshotApplied:result.snapshot.applied}});
         return result;
       }
       throw new Error(`Unknown field synchronization operation: ${operation}`);
     },
-    async references({auth}){await session(auth);const [lots,animals,data,sanitary,inventory,pastures,nutrition]=await Promise.all([presentation.load('lots',{}),presentation.load('animals',{}),presentation.load('data',{}),presentation.load('sanitary',{}),presentation.load('inventory',{}),presentation.load('pastures',{}),presentation.load('nutrition',{})]);const unwrap=rows=>(rows??[]).map(r=>r.payload??r);const catalog=unwrap(data.rows);return{lots:unwrap(lots.rows),animals:unwrap(animals.rows),farms:catalog.filter(x=>x.registration!==undefined||x.location!==undefined),breeds:catalog.filter(x=>x.species!==undefined),categories:catalog.filter(x=>x.purpose!==undefined&&x.species===undefined&&x.registration===undefined),parties:unwrap(data.parties),protocols:unwrap(sanitary.protocols),inventory:unwrap(inventory.rows),pastures:unwrap(pastures.rows),nutrition:unwrap(nutrition.rows)};},
+    async references({auth}){
+      await session(auth);
+      const localRows=async collection=>persistence?.listRecords?((await persistence.listRecords(collection))??[]).map(record=>record?.payload??record):[];
+      const [lots,animals,data,sanitary,inventory,pastures,nutrition,events,traceability,bodyCondition,tasks,pastureOccupancy,pastureAssessments,rotationPlans,breedingSeasons,reproductionGenetics,reproductionDoseStock]=await Promise.all([
+        presentation.load('lots',{}),presentation.load('animals',{}),presentation.load('data',{}),presentation.load('sanitary',{}),presentation.load('inventory',{}),presentation.load('pastures',{}),presentation.load('nutrition',{}),
+        localRows('cattle.events'),localRows('cattle.traceability'),localRows('cattle.body-condition'),localRows('cattle.tasks'),localRows('cattle.pasture-occupancy'),localRows('cattle.pasture-assessments'),localRows('cattle.pasture-rotation-plan'),localRows('cattle.breeding-seasons'),localRows('cattle.reproduction-genetics'),localRows('cattle.reproduction-dose-stock')
+      ]);
+      const unwrap=rows=>(rows??[]).map(r=>r.payload??r),catalog=unwrap(data.rows);
+      return{
+        lots:unwrap(lots.rows),animals:unwrap(animals.rows),farms:catalog.filter(x=>x.registration!==undefined||x.location!==undefined),breeds:catalog.filter(x=>x.species!==undefined),categories:catalog.filter(x=>x.purpose!==undefined&&x.species===undefined&&x.registration===undefined),parties:unwrap(data.parties),protocols:unwrap(sanitary.protocols),inventory:unwrap(inventory.rows),pastures:unwrap(pastures.rows),nutrition:unwrap(nutrition.rows),
+        events,traceability,bodyCondition,tasks,pastureOccupancy,pastureAssessments,rotationPlans,breedingSeasons,reproductionGenetics,reproductionDoseStock
+      };
+    },
     async load({screenId,auth,context={}}){
       await session(auth,permission(screenId,'read'));
       return presentation.load(screenId,context);

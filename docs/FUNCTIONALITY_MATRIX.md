@@ -1,24 +1,24 @@
 # Functionality matrix — ArtiSys Pecuária
 
 > Fonte de verdade funcional: `src/ui.js`, `src/presentation.js`, `runtime/backend.mjs` e `qa/product-contract.json`.
-> Atualizado em 2026-09-20 para refletir a superfície atual da versão 1.0.1, incluindo profundidade de mercado, administração local e campo offline.
+> Atualizado em 2026-09-21 para refletir o P1 de profundidade operacional integrado ao core local-first.
 
 | Tela | Funcionalidades expostas |
 |---|---|
-| Dashboard (`overview`) | KPIs, alertas, desempenho de peso/GMD, resumo reprodutivo, indicadores reprodutivos derivados, sanidade, distribuição por lote, financeiro e atividade recente |
+| Dashboard (`overview`) | KPIs, alertas, desempenho de peso/GMD, resumo reprodutivo, sanidade, distribuição por lote, financeiro e atividade recente |
 | Lotes (`lots`) | `save`, `remove` |
-| Animais (`animals`) | `save`, `recordMilk`, `move`, `lifecycle`, `batchMove`, `batchLifecycle`; ficha Animal 360º |
+| Animais (`animals`) | `save`, `recordMilk`, `move`, `lifecycle`, `batchMove`, `batchLifecycle`, `recordBodyCondition`, `registerBirth`; ficha Animal 360º |
 | Pesagens (`weights`) | `record`; histórico, inteligência produtiva e fluxo de curral |
-| Sanidade (`sanitary`) | `saveProtocol`, `record`, `batchRecord`; aplicação com produto/dose/unidade, lote/partida, princípio ativo, próxima dose, carência, baixa transacional de estoque, movimento de insumo e custo por lote; alerta de carência e bloqueio de venda durante carência ativa |
-| Reprodução (`reproduction`) | `record`, `batchRecord`; serviço, diagnóstico, perda gestacional, parto e desmame; taxas de serviço, concepção, prenhez, perda gestacional, parto e desmame; painel profissional com genética, doses, estação de monta e eficiência |
-| Compras e Vendas (`trades`) | `create`; venda com caso de uso atômico e fechamento por peso vivo/carcaça, rendimento, preço/@ de carcaça, bruto, descontos, frete, comissão e líquido; simulador sem persistência |
-| Resultado por Lote (`finance`) | `addCost`, `fromTrade`; métricas econômicas por lote, custo/kg ganho, margem, custo/@ peso vivo, DRE produtiva, apropriação e comparativos |
+| Sanidade (`sanitary`) | `saveProtocol`, `record`, `batchRecord`; produto/dose/unidade, lote/partida, princípio ativo, próxima dose, carência, baixa transacional de estoque, movimento de insumo e custo por lote; alerta de carência e bloqueio de venda durante carência ativa |
+| Reprodução (`reproduction`) | `record`, `batchRecord`; serviço, diagnóstico, perda gestacional, parto e desmame; indicadores derivados; painel profissional com genética, doses, estação de monta e eficiência |
+| Compras e Vendas (`trades`) | `create`; venda atômica e fechamento por peso vivo/carcaça, rendimento, preço/@ de carcaça, bruto, descontos, frete, comissão e líquido; simulador sem persistência |
+| Resultado por Lote / Financeiro (`finance`) | `addCost`, `fromTrade`, `saveAccount`, `saveCategory`, `saveTitle`, `cancelTitle`, `settleTitle`, `reverseSettlement`, `importStatement`, `reconcileStatement`, `importInvoiceXml`; DRE produtiva e financeiro administrativo local |
 | Relatórios Zootécnicos (`reports`) | `csv`, `pdf`, `issue`; relatórios operacionais e aprofundados |
 | Rastreabilidade (`traceability`) | `save`, `remove`; identificação oficial e documentos |
-| Estoque e Insumos (`inventory`) | `save`, `adjust`; movimentações, mínimo, lote/partida, validade e custo; recebe baixas transacionais de nutrição e sanidade |
-| Pastagens e Áreas (`pastures`) | `save`, `enterLot`, `leaveLot`; histórico de ocupação, UA/ha, capacidade, descanso, kg/ha e @/ha |
+| Estoque e Insumos (`inventory`) | `save`, `adjust`; movimentações, mínimo, lote/partida, validade e custo; baixas transacionais de nutrição e sanidade |
+| Pastagens e Áreas (`pastures`) | `save`, `enterLot`, `leaveLot`, `recordAssessment`, `saveRotationPlan`; mapa esquemático local, histórico de ocupação, UA/ha, capacidade, descanso, kg/ha, @/ha, avaliações e rotação planejada x realizada |
 | Nutrição (`nutrition`) | `save`, `consume`; consumo por lote, economia de alimentação e baixa transacional do alimento |
-| Agenda de Manejo (`tasks`) | `save`, `complete`; também hospeda o modo campo offline e sincronização local segura |
+| Agenda de Manejo (`tasks`) | `save`, `complete`; também hospeda o modo campo offline, Animal 360º offline e sincronização local segura |
 | Dados e Cadastros (`data`) | `saveFarmUnit`, `saveBreed`, `saveCategory`, `saveParty`, `exportCollection`, `validateImport`, `importCollection`; fazendas, raças, categorias e contatos/partes comerciais pesquisáveis e transferíveis |
 | Dispositivos e IoT (`iot`) | `saveDevice`, `removeDevice`, `testDevice`, `startDevice`, `stopDevice`, `bindRfid`, `unbindRfid`, `simulateRfid`, `simulateWeight` |
 | Configurações (`settings`) | `backup`, `restore`; atualização do aplicativo, administração de usuários, perfis e auditoria são expostas pelo runtime/UI desktop |
@@ -26,16 +26,66 @@
 ## Totais atuais
 
 - **17 telas navegáveis**
-- **49 ações de apresentação certificadas**
+- **62 ações de apresentação certificadas**
 - **17 métodos RPC de runtime contratados**
-- IoT é opcional e não bloqueia o core
+- IoT permanece opcional e não bloqueia o core
 - Core local-first, sem dependência paga obrigatória
 
 ## RPCs contratados
 
-O contrato de QA também cobre a superfície de runtime que não pertence a uma ação de tela:
-
 `describe`, `authState`, `bootstrap`, `login`, `validate`, `logout`, `search`, `alerts`, `audit`, `insights`, `simulateSale`, `reproductionAdmin`, `userAdmin`, `fieldSync`, `references`, `load`, `action`.
+
+### Financeiro administrativo local
+
+O financeiro produtivo existente (`cattle.finance`) foi preservado. O P1 adiciona um subsistema administrativo separado para:
+
+- contas/caixas e categorias;
+- contas a pagar e a receber;
+- títulos com situação derivada por liquidações imutáveis;
+- baixa parcial ou integral;
+- estorno explícito que reabre saldo quando aplicável;
+- visão de realizado e projeções de 7/30/90 dias;
+- saldo derivado por conta, sem saldo inicial editável silencioso;
+- importação local de extrato CSV com identificador estável e idempotência;
+- conciliação manual com baixa existente ou ajuste explícito/auditável;
+- leitura local de XML/NF-e como **sugestão**, sem criar título automaticamente.
+
+Não há transmissão fiscal, consulta SEFAZ, Open Finance, Pluggy ou API bancária obrigatória. CSV e XML são processados localmente.
+
+### Pastagens e condição corporal
+
+O P1 aprofunda o manejo visual e mensurável sem usar mapas remotos:
+
+- identificação visual e polígono esquemático em coordenadas locais 0–100;
+- estados disponível, ocupado, descanso e indisponível;
+- meta de descanso, ocupação e altura;
+- avaliações de pastagem com escore, altura, massa de forragem, cobertura, fotos locais e observações;
+- planejamento de rotação por lote e período;
+- comparação planejado x realizado;
+- indicadores de lotação, capacidade, ocupação, descanso, kg/ha e @/ha;
+- escore corporal registrado pela ação canônica `animals.recordBodyCondition` e consumido pelas visões de manejo/pastagem.
+
+Ausência de observação é representada como ausência de dado, não como zero inventado.
+
+### Campo offline (`fieldSync`)
+
+O modo campo continua no mesmo produto e não depende de uma segunda aplicação ou servidor externo. O pacote local usa criptografia AES-GCM e controle de expiração, recibos, idempotência e conflitos.
+
+Operações rápidas suportadas incluem:
+
+- tarefa concluída e pesagem;
+- movimentação individual/coletiva;
+- reprodução individual/coletiva;
+- nascimento, desmame e morte;
+- sanidade individual/coletiva;
+- vínculo RFID/EID com permissão granular;
+- rastreabilidade;
+- entrada/saída de lote em pastagem;
+- escore corporal e avaliação de pastagem.
+
+O snapshot local inclui animais, lotes, tarefas, eventos, rastreabilidade, inventário, protocolos sanitários, pastagens/ocupação, dados reprodutivos, condição corporal, avaliações e rotação. O Animal 360º offline reúne identificação, lote, peso, escore, eventos, rastreabilidade, tarefas e histórico essencial.
+
+O `fieldSync` não aceita comando arbitrário `{screenId, action}`. Toda operação é normalizada para uma ação conhecida e passa novamente pela autorização da ação de destino.
 
 ### Reprodução profissional (`reproductionAdmin`)
 
@@ -46,7 +96,7 @@ O contrato de QA também cobre a superfície de runtime que não pertence a uma 
 - `saveBreedingSeason`
 - `recordService`
 
-A UI permite criar e editar touro/sêmen, ativar/desativar genética, criar e editar lotes de doses, ativar/desativar lotes, ajustar quantidade com motivo/data, cadastrar/editar/encerrar estação de monta e registrar serviço com número de doses e observações.
+A UI permite criar/editar touro ou sêmen, ativar/desativar genética, gerenciar lotes de doses, ajustar estoque com motivo/data, cadastrar/editar/encerrar estação de monta e registrar serviço com doses e observações.
 
 ### Administração local (`userAdmin`)
 
@@ -56,26 +106,23 @@ A UI permite criar e editar touro/sêmen, ativar/desativar genética, criar e ed
 - redefinição de senha;
 - matriz de permissões.
 
-### Campo offline (`fieldSync`)
+## Cobertura UI/backend e QA
 
-- estado e configuração do dispositivo;
-- pareamento local;
-- operações rápidas;
-- exportação/importação de pacote local criptografado;
-- controle de operações aplicadas, ignoradas e conflitantes.
+A superfície pública é fechada por contrato. A Fase 5 compara conjuntos completos de telas, ações e RPCs; não basta manter um subconjunto histórico.
 
-## P0 de profundidade e cobertura concluído
+O P1 também possui cobertura para:
 
-O P0 atual fecha as principais lacunas de produto e de exposição da interface:
-
-1. **Arroba/comercial:** peso vivo e carcaça possuem semântica separada e fechamento comercial completo.
-2. **Sanidade:** aplicação integra estoque, movimento, custo e carência de forma transacional quando o produto existe no estoque.
-3. **Segurança sanitária da venda:** carência ativa gera alerta e impede venda antes da gravação.
-4. **Reprodução:** indicadores operacionais e gestão profissional de genética/doses/estação estão expostos, incluindo ajuste manual auditável de doses.
-5. **Partes comerciais:** contatos são entidades locais de primeira classe, com busca e transferência de dados.
-6. **Cobertura UI/backend:** toda a superfície de tela está representada pelo contrato de 17 telas/49 ações, e RPCs adicionais relevantes são contratados explicitamente.
-7. **QA fail-closed:** a Fase 5 compara conjuntos completos de telas e ações, em vez de apenas verificar que um subconjunto antigo ainda existe.
+1. execução funcional das 62 ações contratadas;
+2. compatibilidade com banco P0 sem backfill destrutivo;
+3. formulários tipados, sem editor JSON cru na UI normal;
+4. RBAC por destino também no caminho offline;
+5. idempotência/replay de sync;
+6. transações de nascimento, sanidade e finanças;
+7. E2E de financeiro, pastagens, animal e modo campo;
+8. baseline SHA-256 do contrato de API.
 
 ## Observação de escopo
 
-A superfície atual já inclui pastagens analíticas, inteligência produtiva, reprodução profissional, simulador comercial e modo campo offline inicial. Os principais aprofundamentos restantes são financeiro administrativo completo (caixa, pagar/receber e previsto x realizado), expansão do modo campo para mais manejos e especializações opcionais como confinamento, leite, genética/DEP e reprodução embrionária. Esses aprofundamentos não devem introduzir dependência paga obrigatória no core.
+O produto é uma gestão profissional de pecuária bovina generalista, especialmente **corte, cria, recria e engorda**. A superfície atual não deve ser apresentada como ERP contábil completo, gestão leiteira completa, confinamento especializado, plataforma completa de genética/DEP, FIV/TE/IATF especializada, sistema fiscal emissor ou integração oficial SISBOV completa.
+
+Integrações fiscais, bancárias, cloud ou serviços pagos podem ser oferecidos futuramente apenas como conectores opcionais. O funcionamento obrigatório do core deve permanecer local/self-hosted e sem custo recorrente de infraestrutura.

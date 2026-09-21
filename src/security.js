@@ -3,9 +3,9 @@ import {createAuditService} from './audit.js';
 
 export const SECURITY_POLICY=Object.freeze({
   admin:['*'],
-  manager:['cattle:read','cattle:write','finance:read','reports:read','audit:read','session:revoke','settings:read','settings:backup','iot:read','iot:write'],
-  'field-operator':['cattle:read','cattle:write','reports:read','session:revoke'],
-  finance:['cattle:read','finance:read','reports:read','session:revoke'],
+  manager:['cattle:read','cattle:write','finance:read','finance:write','finance:settle','reports:read','audit:read','session:revoke','settings:read','settings:backup','iot:read','iot:write','iot:bind'],
+  'field-operator':['cattle:read','cattle:write','reports:read','session:revoke','iot:bind'],
+  finance:['cattle:read','finance:read','finance:write','finance:settle','reports:read','session:revoke'],
   viewer:['cattle:read','reports:read','session:revoke']
 });
 
@@ -14,9 +14,9 @@ export const PRESENTATION_ACCESS=Object.freeze({
   defaultWrite:'cattle:write',
   screens:Object.freeze({
     data:{read:'cattle:read',write:'cattle:write'},
-    finance:{read:'finance:read'},
+    finance:{read:'finance:read',write:'finance:write',actions:Object.freeze({settleTitle:'finance:settle',reverseSettlement:'finance:settle',reconcileStatement:'finance:settle'})},
     reports:{read:'reports:read',write:'reports:read'},
-    iot:{read:'iot:read',write:'iot:write'},
+    iot:{read:'iot:read',write:'iot:write',actions:Object.freeze({bindRfid:'iot:bind',unbindRfid:'iot:bind'})},
     settings:{
       read:'settings:read',
       write:'settings:write',

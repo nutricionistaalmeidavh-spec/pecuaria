@@ -15,14 +15,14 @@ const expectedActions=Object.entries(contract.actions)
   .sort();
 const executionOrder=[
   'lots.save','lots.remove',
-  'animals.save','animals.recordMilk','animals.move','animals.lifecycle','animals.batchMove','animals.batchLifecycle',
+  'animals.save','animals.registerBirth','animals.recordMilk','animals.move','animals.lifecycle','animals.batchMove','animals.batchLifecycle',
   'weights.record',
   'inventory.save','inventory.adjust',
   'sanitary.saveProtocol','sanitary.record','sanitary.batchRecord',
   'reproduction.record','reproduction.batchRecord',
-  'trades.create','finance.addCost','finance.fromTrade',
+  'trades.create','finance.addCost','finance.fromTrade','finance.saveAccount','finance.saveCategory','finance.saveTitle','finance.settleTitle','finance.importStatement','finance.reconcileStatement','finance.reverseSettlement','finance.cancelTitle','finance.importInvoiceXml',
   'traceability.save','traceability.remove',
-  'pastures.save','pastures.enterLot','pastures.leaveLot',
+  'pastures.save','pastures.enterLot','pastures.recordAssessment','animals.recordBodyCondition','pastures.saveRotationPlan','pastures.leaveLot',
   'nutrition.save','nutrition.consume',
   'tasks.save','tasks.complete',
   'data.saveFarmUnit','data.saveBreed','data.saveCategory','data.saveParty','data.exportCollection','data.validateImport','data.importCollection',
@@ -38,7 +38,7 @@ async function authFor(host){
   return{sessionId:logged.session.id,token:logged.token};
 }
 
-test('scenario registry exactly matches and executes all 49 contracted actions',async()=>{
+test('scenario registry exactly matches and executes all 62 contracted actions',async()=>{
   const root=await mkdtemp(join(tmpdir(),'pecuaria-actions-'));
   let host;
   try{
@@ -60,7 +60,8 @@ test('scenario registry exactly matches and executes all 49 contracted actions',
     await host.presentation.services.iot.saveDevice({id:'iot-sim-scale',name:'Balança QA',profileId:'simulator-scale',stationId:'curral-qa',enabled:true,config:{}});
     await host.presentation.services.iot.startDevice('iot-sim-scale');
 
-    let backupId=null;
+    let backupId=null,statementLineId=null;
+    const statementInput={sourceName:'qa.csv',text:'date;description;amount\n2026-09-20;Baixa QA;-300,00'};
     const run=(screenId,action,input={})=>host.backend.action({screenId,action,input,auth});
     const transferDocument={
       format:'artisys-pecuaria-export',version:1,productId:'agro-pecuaria',collection:'cattle.parties',exportedAt:'2026-09-19T19:00:00.000Z',
@@ -73,6 +74,7 @@ test('scenario registry exactly matches and executes all 49 contracted actions',
         return run('lots','remove',{id:'lot-remove',expectedVersion:current.version});
       },
       'animals.save':()=>run('animals','save',createAnimal({id:'animal-action',tag:'ACTION-QA',farmUnitId:'farm-1',lotId:'lot-main',purpose:'dairy'})),
+      'animals.registerBirth':()=>run('animals','registerBirth',{id:'animal-birth',tag:'BIRTH-QA',farmUnitId:'farm-1',birthDate:'2026-09-19T14:40:00Z',sex:'female',damId:'animal-repro',lotId:'lot-main',notes:'qa birth'}),
       'animals.recordMilk':()=>run('animals','recordMilk',{id:'animal-action',liters:12.5,measuredAt:'2026-09-19T14:45:00Z'}),
       'animals.move':()=>run('animals','move',{id:'animal-move',toLotId:'lot-target',movedAt:'2026-09-19T15:00:00Z',reason:'qa'}),
       'animals.lifecycle':()=>run('animals','lifecycle',{id:'animal-life',type:'death',occurredAt:'2026-09-19T15:05:00Z',reason:'qa'}),
@@ -89,6 +91,15 @@ test('scenario registry exactly matches and executes all 49 contracted actions',
       'trades.create':()=>run('trades','create',{id:'trade-qa',type:'purchase',partyId:'supplier-1',animalIds:[],totalAmountMinor:100000,occurredAt:'2026-09-19T15:25:00Z'}),
       'finance.addCost':()=>run('finance','addCost',{id:'cost-qa',lotId:'lot-main',amountMinor:25000,description:'Custo QA',category:'qa'}),
       'finance.fromTrade':()=>run('finance','fromTrade',{tradeId:'trade-qa',id:'trade-finance-qa',lotId:'lot-main'}),
+      'finance.saveAccount':()=>run('finance','saveAccount',{id:'fin-account-qa',name:'Conta QA',kind:'bank'}),
+      'finance.saveCategory':()=>run('finance','saveCategory',{id:'fin-category-qa',name:'Custos QA',direction:'payable'}),
+      'finance.saveTitle':()=>run('finance','saveTitle',{id:'fin-title-qa',direction:'payable',description:'Título QA',originalAmountMinor:100000,issuedAt:'2026-09-19',dueAt:'2026-10-01',categoryId:'fin-category-qa',accountId:'fin-account-qa'}),
+      'finance.settleTitle':()=>run('finance','settleTitle',{id:'fin-settlement-qa',operationId:'fin-op-settle-qa',titleId:'fin-title-qa',amountMinor:30000,occurredAt:'2026-09-20T10:00:00Z',accountId:'fin-account-qa'}),
+      'finance.importStatement':async()=>{const result=await run('finance','importStatement',statementInput);const lines=await host.persistence.listRecords('cattle.finance-reconciliations');statementLineId=lines[0]?.id;assert.ok(statementLineId);return result;},
+      'finance.reconcileStatement':()=>run('finance','reconcileStatement',{lineId:statementLineId,settlementId:'fin-settlement-qa'}),
+      'finance.reverseSettlement':()=>run('finance','reverseSettlement',{id:'fin-reversal-qa',operationId:'fin-op-reverse-qa',settlementId:'fin-settlement-qa',occurredAt:'2026-09-20T11:00:00Z',reason:'qa'}),
+      'finance.cancelTitle':async()=>{await run('finance','saveTitle',{id:'fin-title-cancel-qa',direction:'receivable',description:'Cancelar QA',originalAmountMinor:5000,issuedAt:'2026-09-19',dueAt:'2026-10-02'});return run('finance','cancelTitle',{id:'fin-title-cancel-qa',cancelledAt:'2026-09-20T12:00:00Z',reason:'qa'});},
+      'finance.importInvoiceXml':()=>run('finance','importInvoiceXml',{sourceName:'nfe-qa.xml',xml:'<NFe><infNFe><ide><nNF>77</nNF><dEmi>2026-09-20</dEmi></ide><emit><CNPJ>12345678000199</CNPJ><xNome>Fornecedor QA</xNome></emit><total><ICMSTot><vNF>123.45</vNF></ICMSTot></total></infNFe></NFe>'}),
       'traceability.save':()=>run('traceability','save',{id:'trace-qa',animalId:'animal-weight',officialId:'BR-QA-001',type:'identity',documentNumber:'DOC-QA',issuer:'QA',issuedAt:'2026-09-19T15:30:00Z'}),
       'traceability.remove':async()=>{
         const current=await host.persistence.getRecord('cattle.traceability','trace-qa');
@@ -96,6 +107,9 @@ test('scenario registry exactly matches and executes all 49 contracted actions',
       },
       'pastures.save':()=>run('pastures','save',{id:'pasture-qa',name:'Piquete QA',farmUnitId:'farm-1',areaHa:12.5,capacityAu:20,status:'active',forage:'Brachiaria'}),
       'pastures.enterLot':()=>run('pastures','enterLot',{id:'occupancy-qa',pastureId:'pasture-qa',lotId:'lot-main',enteredAt:'2026-09-19T15:35:00Z',animalUnits:10,notes:'qa'}),
+      'pastures.recordAssessment':()=>run('pastures','recordAssessment',{id:'assessment-qa',pastureId:'pasture-qa',occurredAt:'2026-09-19T16:00:00Z',score:4,heightCm:28,forageMassKgHa:3200,groundCoverPct:90}),
+      'animals.recordBodyCondition':()=>run('animals','recordBodyCondition',{id:'body-qa',animalId:'animal-weight',occurredAt:'2026-09-19T16:05:00Z',score:3.5}),
+      'pastures.saveRotationPlan':()=>run('pastures','saveRotationPlan',{id:'rotation-qa',pastureId:'pasture-qa',lotId:'lot-main',plannedEnterAt:'2026-09-25T08:00:00Z',plannedLeaveAt:'2026-09-28T08:00:00Z'}),
       'pastures.leaveLot':()=>run('pastures','leaveLot',{id:'occupancy-qa',leftAt:'2026-09-20T15:35:00Z'}),
       'nutrition.save':()=>run('nutrition','save',{id:'nutrition-qa',name:'Plano QA',lotId:'lot-main',feedItemId:'feed-qa',dailyKgPerHead:1.5,startsAt:'2026-09-19T00:00:00Z',notes:'qa'}),
       'nutrition.consume':()=>run('nutrition','consume',{planId:'nutrition-qa',days:1,occurredAt:'2026-09-19T16:00:00Z'}),
@@ -166,7 +180,7 @@ test('scenario registry exactly matches and executes all 49 contracted actions',
 
     assert.deepEqual(Object.keys(scenarios).sort(),expectedActions);
     assert.deepEqual([...executionOrder].sort(),expectedActions);
-    assert.equal(expectedActions.length,49);
+    assert.equal(expectedActions.length,62);
 
     const covered=[];
     for(const key of executionOrder){
@@ -179,6 +193,27 @@ test('scenario registry exactly matches and executes all 49 contracted actions',
 
     const weighted=await repos.animals.get('animal-weight');
     assert.equal(weighted.payload.weights.at(-1).weightKg,420);
+
+    const born=await repos.animals.get('animal-birth');
+    assert.equal(born?.payload?.tag,'BIRTH-QA');
+    const birthEvents=await repos.events.list();
+    assert.ok(birthEvents.some(record=>record.id==='animal-birth:birth'&&record.payload?.kind==='birth'&&record.payload?.animalId==='animal-birth'));
+
+    const finance=(await host.presentation.load('finance')).admin;
+    const title=finance.titles.find(item=>item.id==='fin-title-qa');
+    assert.equal(title?.openAmountMinor,100000);
+    assert.equal(title?.status,'open');
+    const replay=await run('finance','importStatement',statementInput);
+    assert.equal(replay.imported,0);
+    assert.equal(replay.skipped,1);
+
+    const assessments=await host.persistence.listRecords('cattle.pasture-assessments');
+    const bodyScores=await host.persistence.listRecords('cattle.body-condition');
+    const rotations=await host.persistence.listRecords('cattle.pasture-rotation-plan');
+    assert.ok(assessments.some(record=>record.id==='assessment-qa'));
+    assert.ok(bodyScores.some(record=>record.id==='body-qa'));
+    assert.ok(rotations.some(record=>record.id==='rotation-qa'));
+
     const audit=await host.presentation.services.audit.list();
     assert.ok(audit.some(entry=>entry.action==='settings.restore'));
     assert.ok(audit.some(entry=>entry.action==='cattle.report.issue'));

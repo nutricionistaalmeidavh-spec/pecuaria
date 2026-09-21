@@ -10,6 +10,8 @@ import {ActionResultPanel,PastureDecisionPanel,ReproductionDecisionPanel,Sanitar
 import {SanitaryApplicationsPanel} from './depth-operations.jsx';
 import {ProfessionalReproductionPanel,UserAdministrationPanel} from './pro-management.jsx';
 import {FieldMobileWorkspace} from './field-mobile.jsx';
+import {FinanceAdminWorkspace} from './finance-admin.jsx';
+import {PastureManagementWorkspace} from './pasture-management.jsx';
 import {Icon} from './icons.jsx';
 import './styles.css';
 
@@ -144,7 +146,7 @@ function App(){
   function surfaceResult(result,{screen=screenId,name=action}={}){
     const downloaded=downloadActionResult(result);
     if(downloaded){setActionResult(downloaded);return;}
-    const shouldShow=(screen==='data'&&name==='validateImport')||(screen==='iot'&&['testDevice','startDevice','stopDevice','simulateRfid','simulateWeight'].includes(name));
+    const shouldShow=(screen==='data'&&name==='validateImport')||(screen==='iot'&&['testDevice','startDevice','stopDevice','simulateRfid','simulateWeight'].includes(name))||(screen==='finance'&&['importStatement','importInvoiceXml'].includes(name));
     if(shouldShow&&result!=null)setActionResult(result);
   }
 
@@ -196,17 +198,19 @@ function App(){
       {screenId==='finance'&&<section className="panel" data-testid="finance-lot-selector"><div className="panel-heading"><div><span className="eyebrow">Resultado por lote</span><h2>Escolha o lote analisado</h2><p>Os indicadores econômicos abaixo são recalculados para o lote selecionado.</p></div></div><div className="form-grid"><label><span>Lote</span><select value={financeLotId} onChange={e=>setFinanceLotId(e.target.value)}><option value="">Selecione um lote</option>{(references.lots??[]).map(lot=><option key={lot.id} value={lot.id}>{lot.name??lot.id}</option>)}</select></label></div></section>}
       {screenId==='finance'&&<FinanceMetrics metrics={data?.metrics}/>} 
       {screenId==='finance'&&<FinanceDecisionPanel insights={depthInsights}/>} 
+      {screenId==='finance'&&<FinanceAdminWorkspace data={data} onRun={async(name,input)=>{try{const result=await runAction('finance',name,input);surfaceResult(result,{screen:'finance',name});await load('finance');setNotice({tone:'success',text:name==='importInvoiceXml'?'XML lido localmente. Revise a sugestão antes de criar o título.':'Financeiro administrativo atualizado.'});return result}catch(error){setNotice({tone:'error',text:error.message});throw error}}}/>} 
       {screenId==='reproduction'&&<ReproductionSummary records={rows} metrics={data?.metrics}/>} 
       {screenId==='reproduction'&&<ReproductionDecisionPanel insights={depthInsights}/>} 
       {screenId==='reproduction'&&reproductionAdminState&&<ProfessionalReproductionPanel state={reproductionAdminState} animals={reproductionFemales} onAction={runReproductionAdmin}/>} 
       {screenId==='sanitary'&&<SanitaryAnalyticsPanel insights={depthInsights}/>} 
       {screenId==='sanitary'&&<SanitaryApplicationsPanel events={data?.events??[]}/>} 
+      {screenId==='pastures'&&<PastureManagementWorkspace data={data?.management}/>} 
       {screenId==='pastures'&&<PastureDecisionPanel insights={depthInsights}/>} 
       {screenId==='weights'&&<ProductiveIntelligencePanel insights={depthInsights}/>} 
       {screenId==='trades'&&<CommercialSummaryPanel insights={depthInsights}/>} 
       {screenId==='trades'&&<CommercialSimulator lots={references.lots??[]} result={simulationResult} onSimulate={async input=>{try{setSimulationResult(await backend.simulateSale({auth,...input}))}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
       {screenId==='reports'&&<AdvancedReportsPanel lots={references.lots??[]} onGenerate={async({format,...input})=>{try{const result=await backend.action({screenId:'reports',action:format,input,auth,context:{}});surfaceResult(result,{screen:'reports',name:format})}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
-      {screenId==='tasks'&&<FieldMobileWorkspace tasks={rows} animals={references.animals??[]} lots={references.lots??[]} protocols={references.protocols??[]} syncState={fieldSyncState} onSync={runFieldSync}/>} 
+      {screenId==='tasks'&&<FieldMobileWorkspace tasks={rows} animals={references.animals??[]} lots={references.lots??[]} protocols={references.protocols??[]} fieldData={references} syncState={fieldSyncState} onSync={runFieldSync}/>} 
       {screenId==='iot'&&<IoTDetailsPanel data={data}/>} 
       {screenId==='weights'&&<CorralFlow animals={references.animals??[]} onRecord={async input=>{await runAction('weights','record',input);await load('weights');backend.references({auth}).then(setReferences)}}/>}
       {screenId==='animals'&&animalDetail&&<AnimalDetail detail={animalDetail} onClose={()=>setAnimalDetail(null)}/>} 

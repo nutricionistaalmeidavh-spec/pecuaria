@@ -11,6 +11,7 @@ on:
       - depth/finance-pasture-history
       - depth/reproduction-admin
       - depth/field-mobile-offline
+      - p1-operational-depth
       - main
   workflow_dispatch:
 
@@ -29,6 +30,8 @@ jobs:
         run: npm run check:imports
       - name: Unit and integration tests
         run: npm test
+      - name: Compatibility contract
+        run: npm run compat:contract
       - name: Web build
         run: npm run build:web
       - name: Install Playwright Chromium

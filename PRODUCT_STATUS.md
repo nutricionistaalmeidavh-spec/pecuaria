@@ -5,13 +5,13 @@
 - Banco: `artisys-pecuaria.sqlite`
 - Migration obrigatória: `agro-pecuaria/001-initial.sql`
 - Telas navegáveis atuais: **17**
-- Ações declaradas/certificadas na apresentação: **49**
+- Ações declaradas/certificadas na apresentação: **62**
 - Métodos RPC contratados: **17**
 - Arquitetura: **desktop local-first**
 - Dependência paga obrigatória: **nenhuma**
 
 > Fonte de verdade funcional: `src/ui.js`, `src/presentation.js`, `runtime/backend.mjs`, `qa/product-contract.json` e `docs/FUNCTIONALITY_MATRIX.md`.
-> Atualizado em 2026-09-20. Contagens históricas de 10/11 telas e 16/25 ações não representam mais a superfície atual.
+> Atualizado em 2026-09-21 para o P1 de profundidade operacional. Contagens históricas de 49 ações ou menos não representam mais a superfície atual.
 
 ## Superfície funcional atual
 
@@ -22,201 +22,193 @@
 5. Sanidade
 6. Reprodução
 7. Compras e Vendas
-8. Resultado por Lote
+8. Resultado por Lote / Financeiro
 9. Relatórios Zootécnicos
 10. Rastreabilidade
 11. Estoque e Insumos
 12. Pastagens e Áreas
 13. Nutrição
-14. Agenda de Manejo
+14. Agenda de Manejo / Campo offline
 15. Dados e Cadastros
 16. Dispositivos e IoT
 17. Configurações
 
-A relação completa de ações por tela e RPCs está em `docs/FUNCTIONALITY_MATRIX.md`.
+A relação exata de ações por tela e RPCs está em `docs/FUNCTIONALITY_MATRIX.md`.
 
-## Produto
+## Núcleo operacional
 
-O núcleo mantém:
+O produto mantém:
 
-- persistência transacional;
-- invariantes pecuárias;
+- persistência SQLite transacional e operação local-first;
+- invariantes pecuárias e rollback de operações compostas;
 - RBAC e auditoria persistente;
-- venda atômica com rollback;
-- formulários operacionais tipados;
+- formulários operacionais tipados, sem editor JSON cru na UI normal;
 - backup verificável com SHA-256 e safety backup;
 - busca global, alertas e importação/exportação locais;
-- reporting e dashboard derivados da fonte persistida;
-- ficha Animal 360º com timeline de pesagens, movimentações, ciclo de vida, sanidade, reprodução, negociações, rastreabilidade e tarefas;
-- manejo coletivo de movimentação, ciclo de vida, sanidade e reprodução;
-- estoque com movimentações, lote, validade, mínimo e custo;
-- nutrição por lote com cálculo de consumo e baixa transacional do alimento;
-- pastagens/áreas com capacidade, UA/ha, ocupação, descanso e produtividade por área;
-- rastreabilidade com identificação oficial/documentos;
+- dashboard e relatórios derivados dos dados persistidos;
+- ficha Animal 360º;
+- manejo individual e coletivo de movimentação, ciclo de vida, sanidade e reprodução;
+- estoque e insumos com movimentações, lote/partida, validade, mínimo e custo;
+- nutrição por lote com baixa transacional do alimento;
+- rastreabilidade local;
 - relatórios CSV/PDF e emissão persistida;
-- resultado econômico por lote, DRE produtiva, apropriação e comparativos;
-- simulador comercial sem persistência;
-- reprodução profissional com genética, sêmen, estoque de doses, estação de monta e eficiência;
-- administração local de usuários/perfis e auditoria;
-- modo campo offline com sincronização local criptografada.
+- comercial com peso vivo/carcaça e venda atômica;
+- reprodução profissional;
+- administração local de usuários, perfis e auditoria;
+- IoT opcional para RFID/EID, balanças e conectores locais;
+- campo offline criptografado, sem servidor obrigatório.
 
-## P0 de profundidade de mercado — concluído
+## P1 — profundidade operacional integrada
 
-O P0 aprofunda módulos existentes sem ampliar o menu e sem introduzir dependência paga.
+### Financeiro administrativo
 
-### Economia de arroba e fechamento comercial
+O financeiro produtivo histórico permanece separado e funcional. O P1 adiciona:
 
-- separação explícita entre **arroba de peso vivo** e **arroba de carcaça**;
-- cálculo de peso vivo, @ de peso vivo, peso de carcaça, rendimento de carcaça e @ de carcaça;
-- venda pode calcular o fechamento por preço/@ de carcaça;
-- valor bruto, descontos, frete, comissão e valor líquido ficam persistidos no fechamento;
-- a tela de Compras e Vendas expõe os dados de carcaça;
-- simulador de cenário calcula o fechamento sem criar venda nem alterar estoque/rebanho;
-- o indicador econômico legado continua compatível, mas a interface identifica claramente `Custo/@ peso vivo`.
+- contas/caixas e categorias;
+- contas a pagar e a receber;
+- títulos com baixa parcial ou integral;
+- liquidações imutáveis e estorno explícito;
+- saldo derivado por conta;
+- realizado e projeções de 7/30/90 dias;
+- importação local de extrato CSV com idempotência;
+- conciliação manual com baixa existente ou ajuste explícito/auditável;
+- leitura local de XML/NF-e como proposta de lançamento.
 
-### Sanidade integrada à operação
+O sistema **não transmite documento fiscal**, não consulta SEFAZ e não depende de Open Finance, Pluggy, banco ou serviço externo para operar.
 
-- protocolo sanitário suporta intervalo, princípio ativo e carência;
-- aplicação resolve produto, dose, unidade, lote/partida e custo;
-- quando o insumo está cadastrado, a aplicação faz **baixa transacional de estoque**, registra movimento e apropria custo ao lote do animal;
-- estoque insuficiente rejeita a operação sem escrita parcial;
-- período de carência fica registrado no evento e aparece na central de alertas;
-- venda de animal com carência sanitária ativa é bloqueada antes de qualquer gravação;
-- registros antigos continuam aceitos quando ainda não existe item correspondente no estoque.
+### Pastagens e condição corporal
 
-### Reprodução profissional
+O módulo de pastagens agora cobre:
 
-Além dos eventos de serviço, diagnóstico, perda gestacional, parto e desmame, o produto mantém:
+- mapa esquemático local, sem GIS/cloud obrigatório;
+- capacidade, ocupação, UA/ha, descanso e produtividade por área;
+- status disponível, ocupado, descanso e indisponível;
+- avaliações com escore, altura, massa de forragem, cobertura e fotos locais;
+- planejamento de rotação por lote e período;
+- planejado x realizado;
+- metas de descanso, ocupação e altura;
+- escore corporal do animal pela ação canônica `animals.recordBodyCondition`.
 
-- taxas de serviço, concepção, prenhez, perda, parto e desmame;
-- intervalo entre partos e dias em aberto;
-- cadastro e edição de touros/sêmen;
-- ativação/desativação de genética;
-- estoque de doses com lote, validade, custo/dose e mínimo;
-- edição e ativação/desativação de lotes de doses;
-- ajuste manual auditável de quantidade com motivo e data;
-- estação de monta com meta de concepção e status planejada/ativa/encerrada;
-- registro profissional de serviço com método, protocolo, genética, lote de doses, quantidade utilizada, previsão de parto e observações;
+Ausência de observação permanece ausência de dado, e não é convertida artificialmente em zero.
+
+### Campo/mobile offline ampliado
+
+O modo campo continua dentro do mesmo produto e usa pacotes locais criptografados com AES-GCM. O fluxo possui expiração, recibos, replay idempotente, detecção de conflito e proteção de snapshot.
+
+Operações rápidas incluem:
+
+- conclusão de tarefa e pesagem;
+- movimentação individual e coletiva;
+- sanidade individual e coletiva;
+- reprodução individual e coletiva;
+- nascimento, desmame e morte;
+- vínculo RFID/EID;
+- rastreabilidade;
+- entrada e saída de lote em pastagem;
+- escore corporal;
+- avaliação de pastagem.
+
+O Animal 360º offline reúne identificação, lote, peso, escore, eventos, rastreabilidade, tarefas e histórico essencial.
+
+O caminho offline não é privilegiado: a operação é normalizada para uma ação conhecida e o backend revalida a permissão da ação de destino. `iot:bind` permite vínculo RFID sem conceder administração de dispositivos ao operador de campo.
+
+### Compatibilidade
+
+O P1 é aditivo:
+
+- banco com formato P0 abre sem backfill destrutivo;
+- coleções novas ausentes são tratadas como vazias;
+- pasto legado com status `active` é interpretado operacionalmente sem ser regravado apenas por leitura;
+- backup/restore continua válido;
+- `FIELD_SYNC_VERSION` permanece 1 porque a ampliação do pacote é compatível e aditiva.
+
+## Reprodução profissional
+
+O produto mantém:
+
+- serviço, diagnóstico de gestação, perdas, parto e desmame;
+- indicadores reprodutivos derivados;
+- genética/touro/sêmen;
+- estoque de doses, lote, validade, custo/dose e mínimo;
+- ajuste manual auditável de estoque de doses;
+- estação de monta;
+- registro profissional de serviço;
 - eficiência por protocolo, reprodutor e estação.
 
-### Contatos e partes comerciais
+## Sanidade e comercial
 
-- cliente, fornecedor, frigorífico e demais partes podem ser cadastrados como entidades locais de catálogo;
-- contatos suportam papéis, documento, telefone, e-mail e observações;
-- contatos participam da busca global e dos fluxos de exportação/importação;
-- negociações continuam usando `partyId`, com cadastro de parte correspondente disponível ao usuário.
-
-### Campo/mobile offline
-
-O modo campo atual é local-first e não depende de nuvem:
-
-- fila de manejo;
-- conclusão rápida de tarefas;
-- pesagem com teclado de toque;
-- movimentação de animal entre lotes;
-- aplicação sanitária rápida;
-- pareamento base/campo;
-- exportação/importação de pacote local criptografado;
-- fila pendente e detecção de conflitos.
-
-### Administração local
-
-- criação e edição de usuários;
-- ativação/desativação;
-- redefinição de senha;
-- perfis e matriz de permissões;
-- auditoria local das operações.
-
-## Alertas operacionais
-
-A central de alertas cobre atualmente:
-
-- manejo sanitário vencido ou próximo;
-- **carência sanitária ativa**;
-- animal ativo com pesagem desatualizada;
-- estoque abaixo do mínimo;
-- insumo próximo da validade ou vencido;
-- estoque de doses reprodutivas no mínimo ou próximo da validade;
-- tarefa de manejo atrasada;
-- previsão de parto próxima, quando informada;
-- backup ausente/desatualizado.
+- protocolos com intervalo, princípio ativo e carência;
+- aplicação sanitária pode baixar estoque, registrar movimento e apropriar custo ao lote de forma transacional;
+- estoque insuficiente rejeita a operação sem escrita parcial;
+- carência ativa gera alerta e bloqueia venda;
+- comercial distingue @ de peso vivo e @ de carcaça;
+- fechamento suporta peso vivo, carcaça, rendimento, bruto, descontos, frete, comissão e líquido;
+- simulador comercial é somente leitura.
 
 ## IoT opcional
 
 A superfície IoT permanece opcional e sem custo recorrente obrigatório:
 
-- tela **Dispositivos e IoT**;
 - RFID/EID e balança;
-- conectores serial, MQTT e HTTP;
+- serial, MQTT e HTTP;
 - registry persistente e secret store local;
 - simuladores para validação sem hardware;
-- falha/ausência de hardware não impede o uso normal do produto.
+- falha ou ausência de hardware não impede o uso normal do produto.
 
 ## Atualização via GitHub Releases
 
 O desktop usa atualização não silenciosa:
 
-- consulta o canal GitHub Releases;
 - `autoDownload = false`;
 - `autoInstallOnAppQuit = false`;
 - sem downgrade automático;
 - sem prerelease no canal normal;
-- **Baixar atualização** exige ação do usuário;
-- **Instalar e reiniciar** exige nova ação explícita;
-- **Verificar atualizações** disponível em Configurações;
+- download e instalação exigem ação explícita do usuário;
 - falha de internet não bloqueia a operação local;
 - nenhum `GH_TOKEN` é embutido no executável.
 
-## QA, certificação e release
+## QA, contrato e segurança
+
+A superfície pública final do P1 é **17 telas / 62 ações / 17 RPCs**.
 
 A cadeia possui:
 
-- testes Node;
+- testes Node unitários e integrados;
 - boundary/import checks;
 - build web;
-- Playwright;
-- QA de superfície;
+- Playwright E2E;
+- QA de superfície fail-closed;
 - API Contracts com baseline SHA-256;
 - Security Gate fail-closed;
 - Product QA;
-- Phase 7 data cutover;
-- Release Validator;
-- Phase 8 certification;
-- build Windows NSIS;
-- evidências de release com SHA-256.
+- compatibilidade de banco P0;
+- regressão IoT P0/P1;
+- release validator e certificação existentes.
 
-O contrato principal agora representa **17 telas, 49 ações e 17 métodos RPC**. A Fase 5 compara conjuntos completos de navegação, telas e ações com o contrato, para bloquear tanto funcionalidades ausentes quanto deriva por funcionalidades novas não certificadas.
+A suíte P1 verifica, entre outros pontos, execução real das 62 ações, transações, idempotência de import/sync, RBAC do destino no campo offline, compatibilidade de dados legados e paridade backend→UI.
 
-Security em release bloqueia findings `MEDIUM`, `HIGH`, `CRITICAL` e desconhecidos.
+## Limites de posicionamento
 
-### Fase 7 sem banco de cliente
+O foco atual é **gestão profissional de pecuária bovina generalista, especialmente corte, cria, recria e engorda**.
 
-Como o produto ainda não possui base legada de cliente em produção, `npm run phase7` usa por padrão uma fixture SQLite versionada em `qa/fixtures/legacy-fixture.sql`.
+Não apresentar a versão atual como:
 
-`ARTISYS_LEGACY_DB` permanece disponível como homologação adicional quando existir uma base real anterior.
+- ERP contábil completo;
+- gestão leiteira completa;
+- confinamento especializado completo;
+- plataforma completa de genética/DEP;
+- sistema especializado completo de FIV/TE/IATF;
+- emissor fiscal completo;
+- integração oficial SISBOV completa.
 
-## Woodpecker
+## Próximos aprofundamentos opcionais
 
-O Woodpecker é opcional e manual. Não é requisito funcional do produto.
-
-## Profundidade funcional — próximos aprofundamentos
-
-Os aprofundamentos que antes estavam planejados para pastagens, inteligência produtiva, reprodução profissional, simulador comercial e campo offline inicial já estão presentes. As próximas prioridades passam a ser:
-
-1. **Financeiro administrativo:** caixa, contas a pagar/receber, previsto x realizado e conciliação local.
-2. **Campo/mobile ampliado:** reprodução, nascimento/desmame/baixa, RFID, rastreabilidade, manejo coletivo, pastagem e consulta Animal 360º offline.
-3. **Pastagem visual:** mapa/piquetes, escores configuráveis, fotos e planejamento visual de rotação.
-4. **Nutrição avançada opcional:** matéria seca, composição, conversão e manejo de cocho para operações que exigirem maior especialização.
-5. **Integrações fiscais/externas opcionais:** importação de XML/NF-e ou integrações oficiais sem tornar serviços externos dependência do core.
-
-### Escopos especializados
-
-- O suporte atual a leite é básico (registro de produção) e **não deve ser apresentado como gestão leiteira completa**.
-- Confinamento, genética/DEP e reprodução embrionária avançada não constituem módulos especializados completos na versão atual.
-- O foco funcional mais aderente hoje é pecuária bovina generalista, especialmente corte/cria/recria/engorda.
+1. nutrição avançada para operações que necessitem matéria seca, composição, conversão e manejo de cocho;
+2. conectores fiscais/bancários/externos opcionais, sem tornar terceiros dependência do core;
+3. especializações de confinamento, leite ou genética apenas quando houver decisão explícita de produto.
 
 ## Regra arquitetural/comercial
 
 O **core obrigatório deve continuar R$ 0 de infraestrutura recorrente, local/self-hosted e baseado em componentes open source**. Serviços pagos, nuvem, APIs comerciais ou integrações externas podem existir apenas como opções explícitas e nunca como dependência silenciosa do funcionamento principal.
 
-**Estado:** profundidade P0, IoT P0/P1, reporting/dashboard, reprodução profissional, administração local, campo offline inicial, updater e P2 de engenharia estão integrados na superfície atual. A próxima evolução deve priorizar profundidade operacional e decisão, sem ampliar o menu por ampliar.
+**Estado:** P0 de profundidade, P1 de profundidade operacional, IoT P0/P1, reporting/dashboard, reprodução profissional, administração local, campo offline ampliado, updater e gates de engenharia estão integrados na branch de P1 e em fase de certificação final antes do merge em `main`.

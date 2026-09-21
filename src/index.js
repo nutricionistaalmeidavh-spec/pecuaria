@@ -54,8 +54,10 @@ export function createCattleTrade({
 export * from './catalog.js';
 export * from './operations.js';
 export * from './finance.js';
+export * from './finance-admin.js';
 export * from './commercial.js';
 export * from './reproduction.js';
+export * from './birth.js';
 export * from './documents.js';
 export * from './security.js';
 export * from './ui.js';

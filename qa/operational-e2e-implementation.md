@@ -1,1 +1,0 @@
-The operational suite will exercise persisted state, side effects, RBAC and offline/update states through customer-facing UI or the desktop bridge where browser-only execution cannot represent the Electron updater.

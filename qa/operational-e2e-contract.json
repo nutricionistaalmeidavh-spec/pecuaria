@@ -1,0 +1,18 @@
+{
+  "families": [
+    "crud",
+    "animal",
+    "sanitary",
+    "sale",
+    "reproduction",
+    "pasture",
+    "nutrition",
+    "reports",
+    "transfer",
+    "rbac",
+    "iot",
+    "fieldOffline",
+    "backup",
+    "updates"
+  ]
+}

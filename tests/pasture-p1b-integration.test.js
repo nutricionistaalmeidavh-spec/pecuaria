@@ -32,6 +32,9 @@ test('pasture presentation exposes five pasture actions and canonical animal bod
     assert.equal(loaded.management.pastures.find(item=>item.id==='p1').latestAssessment.score,4);
     assert.equal(loaded.management.bodyCondition[0].score,3.5);
     assert.equal(loaded.management.rotationPlans[0].id,'rotation-1');
+    const animal360=await f.presentation.load('animals',{animalId:'animal-1'});
+    assert.equal(animal360.detail.bodyCondition[0].score,3.5);
+    assert.ok(animal360.detail.timeline.some(item=>item.kind==='body-condition'&&item.detail.includes('3.5')));
   }finally{await f.close()}
 });
 

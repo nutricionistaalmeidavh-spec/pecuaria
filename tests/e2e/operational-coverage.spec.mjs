@@ -142,7 +142,10 @@ family('fieldOffline','opera em campo, sincroniza pacote, persiste e detecta con
 
   const field=await browser.newContext({acceptDownloads:true});const fieldPage=await field.newPage();await login(fieldPage);await navigate(fieldPage,'tasks');const fieldSwitcher=fieldPage.getByTestId('field-operation-switcher');await fieldSwitcher.getByRole('button',{name:'Sincronizar',exact:true}).click();
   let syncCard=fieldPage.getByTestId('field-secure-sync');await syncCard.locator('input[type=file]').first().setInputFiles({name:'pairing.json',mimeType:'application/json',buffer:pairing});
+  await expect(syncCard.getByRole('button',{name:'Exportar pacote'})).toBeVisible();
   syncCard=fieldPage.getByTestId('field-secure-sync');await syncCard.locator('input[type=file]').last().setInputFiles({name:'snapshot.sync.json',mimeType:'application/json',buffer:snapshotBundle});
+  await expect(fieldPage.getByRole('status')).toContainText('Pacote local importado');
+  await expect.poll(async()=>openDbRecord(fieldPage,'cattle.tasks','task-apply')).not.toBeNull();
 
   await fieldSwitcher.getByRole('button',{name:'Tarefas',exact:true}).click();const queue=fieldPage.getByTestId('field-task-queue');await expect(queue).toContainText('Aplicar E2E');await queue.locator('article').filter({hasText:'Aplicar E2E'}).getByRole('button',{name:'Concluir'}).click();
   await expect.poll(async()=>{const row=await openDbRecord(fieldPage,'cattle.tasks','task-apply');return row?.payload?.status}).toBe('completed');

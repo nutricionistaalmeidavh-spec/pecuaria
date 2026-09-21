@@ -89,7 +89,10 @@
     "pastures": [
       "save",
       "enterLot",
-      "leaveLot"
+      "leaveLot",
+      "recordAssessment",
+      "recordBodyCondition",
+      "saveRotationPlan"
     ],
     "nutrition": [
       "save",

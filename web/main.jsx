@@ -11,6 +11,7 @@ import {SanitaryApplicationsPanel} from './depth-operations.jsx';
 import {ProfessionalReproductionPanel,UserAdministrationPanel} from './pro-management.jsx';
 import {FieldMobileWorkspace} from './field-mobile.jsx';
 import {FinanceAdminWorkspace} from './finance-admin.jsx';
+import {PastureManagementWorkspace} from './pasture-management.jsx';
 import {Icon} from './icons.jsx';
 import './styles.css';
 
@@ -203,6 +204,7 @@ function App(){
       {screenId==='reproduction'&&reproductionAdminState&&<ProfessionalReproductionPanel state={reproductionAdminState} animals={reproductionFemales} onAction={runReproductionAdmin}/>} 
       {screenId==='sanitary'&&<SanitaryAnalyticsPanel insights={depthInsights}/>} 
       {screenId==='sanitary'&&<SanitaryApplicationsPanel events={data?.events??[]}/>} 
+      {screenId==='pastures'&&<PastureManagementWorkspace data={data?.management}/>} 
       {screenId==='pastures'&&<PastureDecisionPanel insights={depthInsights}/>} 
       {screenId==='weights'&&<ProductiveIntelligencePanel insights={depthInsights}/>} 
       {screenId==='trades'&&<CommercialSummaryPanel insights={depthInsights}/>} 

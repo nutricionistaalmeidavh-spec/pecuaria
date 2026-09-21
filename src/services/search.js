@@ -18,6 +18,9 @@ export const SEARCHABLE_COLLECTIONS=Object.freeze([
   'cattle.traceability',
   'cattle.inventory',
   'cattle.pastures',
+  'cattle.pasture-assessments',
+  'cattle.body-condition',
+  'cattle.pasture-rotation-plan',
   'cattle.nutrition',
   'cattle.tasks'
 ]);

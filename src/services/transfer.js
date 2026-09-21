@@ -22,6 +22,9 @@ export const TRANSFERABLE_COLLECTIONS=Object.freeze([
   'cattle.inventory',
   'cattle.inventory-movements',
   'cattle.pastures',
+  'cattle.pasture-assessments',
+  'cattle.body-condition',
+  'cattle.pasture-rotation-plan',
   'cattle.pasture-occupancy',
   'cattle.nutrition',
   'cattle.tasks'

@@ -30,10 +30,13 @@ test('P1 role matrix keeps finance, cattle, RFID and device administration separ
 });
 
 test('field quick execution authorizes both cattle field access and the normalized destination action',async()=>{
-  const backend=await readFile(new URL('../runtime/backend.mjs',import.meta.url),'utf8');
+  const [backend,fieldSync]=await Promise.all([
+    readFile(new URL('../runtime/backend.mjs',import.meta.url),'utf8'),
+    readFile(new URL('../src/field-sync.js',import.meta.url),'utf8')
+  ]);
   assert.match(backend,/permission\(prepared\.command\.screenId,'write',prepared\.command\.action\)/);
   assert.match(backend,/permission\(command\.screenId,'write',command\.action\)/);
-  assert.match(backend,/Unsupported field quick operation/);
+  assert.match(fieldSync,/Unsupported field quick operation/);
 });
 
 test('critical P1 finance mutations audit authenticated actor without raw input or secrets',async()=>{

@@ -38,7 +38,25 @@ async function enforceFieldDestinationPermissions(){
   await write(path,text);
 }
 
+async function fixPasturePolygonNormalization(){
+  const path='web/action-config.js';
+  let text=await read(path);
+  const old="polygon:String(v.polygon??'').split(/\\n+/).map(s=>s.trim()).filter(Boolean).map((line,index)=>{const parts=line.split(/[;, ]+/).filter(Boolean);if(parts.length!==2||!parts.every(part=>Number.isFinite(Number(part))))throw new TypeError(`Ponto ${index+1} inválido. Use x,y.`);return{x:Number(parts[0]),y:Number(parts[1])}})";
+  const replacement="polygon:(()=>{const lines=String(v.polygon??'').split(/\\n+/).map(s=>s.trim()).filter(Boolean);if(!lines.length)return null;return lines.map((line,index)=>{const parts=line.split(/[;, ]+/).filter(Boolean);if(parts.length!==2||!parts.every(part=>Number.isFinite(Number(part))))throw new TypeError(`Ponto ${index+1} inválido. Use x,y.`);return{x:Number(parts[0]),y:Number(parts[1])}})})()";
+  if(text.includes(old))text=replaceOnce(text,old,replacement,'empty pasture polygon normalization');
+  await write(path,text);
+}
+
+async function fixIntegratedE2ESelectors(){
+  const path='tests/e2e/p1-operational-depth.spec.mjs';
+  let text=await read(path);
+  if(text.includes("page.getByTestId('field-sync')"))text=replaceOnce(text,"page.getByTestId('field-sync')","page.getByTestId('field-secure-sync')",'field secure sync test id');
+  await write(path,text);
+}
+
 await fixTask1Assertion();
 await writeBackwardCompatibility();
 await enforceFieldDestinationPermissions();
-console.log('[PASS] P1D compatibility and destination RBAC patches applied');
+await fixPasturePolygonNormalization();
+await fixIntegratedE2ESelectors();
+console.log('[PASS] P1D compatibility, RBAC and browser integration patches applied');

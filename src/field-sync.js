@@ -6,7 +6,17 @@ const SNAPSHOT_COLLECTIONS=Object.freeze([
   'cattle.animals',
   'cattle.lots',
   'cattle.sanitary-protocols',
-  'cattle.inventory'
+  'cattle.inventory',
+  'cattle.events',
+  'cattle.traceability',
+  'cattle.pastures',
+  'cattle.pasture-occupancy',
+  'cattle.breeding-seasons',
+  'cattle.reproduction-genetics',
+  'cattle.reproduction-dose-stock',
+  'cattle.body-condition',
+  'cattle.pasture-assessments',
+  'cattle.pasture-rotation-plan'
 ]);
 
 export const FIELD_PAIRING_FORMAT='artisys-pecuaria-field-pairing';
@@ -74,9 +84,27 @@ export function normalizeFieldQuick(kind,input={},operationId=crypto.randomUUID(
   throw new Error(`Unsupported field quick operation: ${kind}`);
 }
 function touchesSnapshot(operation,collection,id){
-  if(operation.kind==='task.complete')return collection==='cattle.tasks'&&operation.input?.id===id;
-  if(operation.kind==='weight.record'||operation.kind==='animal.move')return collection==='cattle.animals'&&operation.input?.id===id;
-  if(operation.kind==='sanitary.record'&&collection==='cattle.inventory')return true;
+  const input=operation?.input??{};
+  const animalIds=Array.isArray(input.animalIds)?input.animalIds:[];
+  if(operation.kind==='task.complete')return collection==='cattle.tasks'&&input.id===id;
+
+  if(collection==='cattle.animals'){
+    if(['weight.record','animal.move','animal.death','animal.birth'].includes(operation.kind))return input.id===id;
+    if(['animal.batchMove','animal.batchLifecycle'].includes(operation.kind))return animalIds.includes(id);
+  }
+
+  if(collection==='cattle.events'){
+    if(['sanitary.record','reproduction.record','animal.weaning'].includes(operation.kind))return input.id===id;
+    if(operation.kind==='animal.birth')return `${input.id}:birth`===id;
+    if(['sanitary.batchRecord','reproduction.batchRecord'].includes(operation.kind))return true;
+  }
+
+  if(collection==='cattle.inventory'&&['sanitary.record','sanitary.batchRecord'].includes(operation.kind))return true;
+  if(collection==='cattle.traceability'&&operation.kind==='traceability.save')return input.id===id;
+  if(collection==='cattle.pasture-occupancy'&&['pasture.enterLot','pasture.leaveLot'].includes(operation.kind))return input.id===id;
+  if(collection==='cattle.pastures'&&operation.kind==='pasture.enterLot')return input.pastureId===id;
+  if(collection==='cattle.body-condition'&&operation.kind==='animal.bodyScore')return input.id===id;
+  if(collection==='cattle.pasture-assessments'&&operation.kind==='pasture.score')return input.id===id;
   return false;
 }
 

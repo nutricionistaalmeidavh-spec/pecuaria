@@ -1,6 +1,7 @@
 import {readFile,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {contractDigest,projectProductContract} from './api-contract-gate.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const read=path=>readFile(join(root,path),'utf8');
@@ -54,9 +55,146 @@ async function fixIntegratedE2ESelectors(){
   await write(path,text);
 }
 
+async function moveBodyConditionOwnership(){
+  const handler="recordBodyCondition:audited('cattle.body-condition.record','body-condition',input=>pastureManagement.recordBodyCondition(input))";
+  {
+    const path='src/presentation.js';
+    let text=await read(path);
+    const animalsStart=text.indexOf('    animals:{');
+    const animalsEnd=text.indexOf('\n    weights:',animalsStart);
+    if(animalsStart<0||animalsEnd<0)throw new Error('Missing animals presentation block');
+    let animals=text.slice(animalsStart,animalsEnd);
+    if(!animals.includes(handler)){
+      const close=animals.lastIndexOf('}}');
+      if(close<0)throw new Error('Missing animals action close marker');
+      animals=`${animals.slice(0,close)},${handler}${animals.slice(close)}`;
+      text=`${text.slice(0,animalsStart)}${animals}${text.slice(animalsEnd)}`;
+    }
+    const pastureStart=text.indexOf('    pastures:{');
+    const pastureEnd=text.indexOf('\n    nutrition:',pastureStart);
+    if(pastureStart<0||pastureEnd<0)throw new Error('Missing pasture presentation block');
+    let pasture=text.slice(pastureStart,pastureEnd);
+    if(pasture.includes(handler)){
+      pasture=pasture.replace(`${handler},`,'');
+      text=`${text.slice(0,pastureStart)}${pasture}${text.slice(pastureEnd)}`;
+    }
+    await write(path,text);
+  }
+
+  {
+    const path='web/action-config.js';
+    let text=await read(path);
+    const bodyLine="    recordBodyCondition:form('Registrar escore corporal',[field('id','ID da observação'),field('animalId','Animal','text',{refCollection:'animals'}),field('occurredAt','Data/hora','datetime-local'),field('score','Escore corporal','number',{step:'0.1'}),field('scaleId','Escala'),field('scaleMin','Escala mínima','number',{step:'0.1'}),field('scaleMax','Escala máxima','number',{step:'0.1'}),field('notes','Observações','textarea')],v=>({id:clean(v.id),animalId:clean(v.animalId),occurredAt:dateTime(v.occurredAt),score:num(v.score),scaleId:clean(v.scaleId)||undefined,scaleMin:v.scaleMin===''?undefined:num(v.scaleMin),scaleMax:v.scaleMax===''?undefined:num(v.scaleMax),notes:clean(v.notes)||null})),";
+    const animalsStart=text.indexOf('  animals:Object.freeze({');
+    const animalsEnd=text.indexOf('\n  weights:Object.freeze',animalsStart);
+    if(animalsStart<0||animalsEnd<0)throw new Error('Missing animals form block');
+    let animals=text.slice(animalsStart,animalsEnd);
+    if(!animals.includes('recordBodyCondition:form(')){
+      const close=animals.lastIndexOf('\n  })');
+      if(close<0)throw new Error('Missing animals form close marker');
+      animals=`${animals.slice(0,close)},\n${bodyLine}${animals.slice(close)}`;
+      text=`${text.slice(0,animalsStart)}${animals}${text.slice(animalsEnd)}`;
+    }
+    const pastureStart=text.indexOf('  pastures:Object.freeze({');
+    const pastureEnd=text.indexOf('\n  nutrition:Object.freeze',pastureStart);
+    if(pastureStart<0||pastureEnd<0)throw new Error('Missing pasture form block');
+    let pasture=text.slice(pastureStart,pastureEnd);
+    if(pasture.includes(bodyLine)){
+      pasture=pasture.replace(`${bodyLine}\n`,'');
+      text=`${text.slice(0,pastureStart)}${pasture}${text.slice(pastureEnd)}`;
+    }
+    await write(path,text);
+  }
+
+  {
+    const path='src/field-sync.js';
+    let text=await read(path);
+    const old="if(kind==='animal.bodyScore')return command('pastures','recordBodyCondition',{";
+    const replacement="if(kind==='animal.bodyScore')return command('animals','recordBodyCondition',{";
+    if(text.includes(old))text=replaceOnce(text,old,replacement,'body score field route');
+    await write(path,text);
+  }
+}
+
+async function freezeFinalContracts(){
+  const productPath='qa/product-contract.json';
+  const apiPath='qa/api-contract.json';
+  const baselinePath='qa/api-contract.baseline.json';
+  const product=JSON.parse(await read(productPath));
+  product.actions.animals=['save','recordMilk','move','lifecycle','batchMove','batchLifecycle','recordBodyCondition','registerBirth'];
+  product.actions.pastures=['save','enterLot','leaveLot','recordAssessment','saveRotationPlan'];
+  const projected=projectProductContract(product);
+  await write(productPath,`${JSON.stringify(product,null,2)}\n`);
+  await write(apiPath,`${JSON.stringify(projected,null,2)}\n`);
+  await write(baselinePath,`${JSON.stringify({schemaVersion:1,sha256:contractDigest(projected)},null,2)}\n`);
+}
+
+async function updateOwnershipTestsAndE2E(){
+  {
+    const path='tests/product-actions.test.js';
+    let text=await read(path);
+    text=text.replaceAll("'pastures.recordBodyCondition'","'animals.recordBodyCondition'");
+    text=text.replaceAll("run('pastures','recordBodyCondition'","run('animals','recordBodyCondition'");
+    await write(path,text);
+  }
+  {
+    const path='tests/field-quick-contract-p1c.test.js';
+    let text=await read(path);
+    const old="['animal.bodyScore',{animalId:'animal-1',occurredAt:at,score:3.5},'pastures','recordBodyCondition']";
+    if(text.includes(old))text=replaceOnce(text,old,"['animal.bodyScore',{animalId:'animal-1',occurredAt:at,score:3.5},'animals','recordBodyCondition']",'field quick body-score ownership');
+    await write(path,text);
+  }
+  {
+    const path='tests/pasture-p1b-integration.test.js';
+    let text=await read(path);
+    text=text.replace("test('pasture presentation exposes six operational actions through the transactional service'","test('pasture presentation exposes five pasture actions and canonical animal body condition'" );
+    text=text.replace("assert.deepEqual(actions,['save','enterLot','leaveLot','recordAssessment','recordBodyCondition','saveRotationPlan']);","assert.deepEqual(actions,['save','enterLot','leaveLot','recordAssessment','saveRotationPlan']);");
+    text=text.replace("f.presentation.action('pastures','recordBodyCondition'","f.presentation.action('animals','recordBodyCondition'");
+    await write(path,text);
+  }
+  {
+    const path='tests/e2e/p1b-pasture-management.spec.mjs';
+    let text=await read(path);
+    text=text.replace("const actions=['save','enterLot','leaveLot','recordAssessment','recordBodyCondition','saveRotationPlan'];","const actions=['save','enterLot','leaveLot','recordAssessment','saveRotationPlan'];");
+    await write(path,text);
+  }
+  {
+    const path='tests/p1c-contract-surface.test.js';
+    let text=await read(path);
+    text=text.replace("assert.deepEqual(product.actions.animals,['save','registerBirth','recordMilk','move','lifecycle','batchMove','batchLifecycle']);","assert.deepEqual(product.actions.animals,['save','recordMilk','move','lifecycle','batchMove','batchLifecycle','recordBodyCondition','registerBirth']);\n  assert.deepEqual(product.actions.pastures,['save','enterLot','leaveLot','recordAssessment','saveRotationPlan']);\n  assert.equal(actionFormKeys().includes('animals.recordBodyCondition'),true);");
+    await write(path,text);
+  }
+  {
+    const path='tests/e2e/p1-operational-depth.spec.mjs';
+    let text=await read(path);
+    const marker="  await expect(page.getByTestId('data-table')).toContainText('BIRTH-INT');\n\n  await page.getByTestId('nav-tasks').click();";
+    const replacement="  await expect(page.getByTestId('data-table')).toContainText('BIRTH-INT');\n\n  await openAction(page,'animals','recordBodyCondition');\n  for(const [name,value] of Object.entries({id:'body-int',animalId:'calf-int',occurredAt:'2026-09-21T08:00',score:'3.5'}))await fill(page,name,value);\n  await submit(page);\n\n  await page.getByTestId('nav-tasks').click();";
+    if(text.includes(marker))text=replaceOnce(text,marker,replacement,'integrated animal body-score journey');
+    await write(path,text);
+  }
+}
+
+async function freezeFinalP2Gate(){
+  const path='tests/p2-gates.test.js';
+  let text=await read(path);
+  if(!text.includes("from 'node:fs/promises'"))text="import {readFile} from 'node:fs/promises';\n"+text;
+  text=text.replace("import {canonicalJson,contractDigest,validateContractSnapshot} from '../tooling/api-contract-gate.mjs';","import {canonicalJson,contractDigest,projectProductContract,validateContractSnapshot} from '../tooling/api-contract-gate.mjs';");
+  if(!text.includes("final P1 contract projection is frozen at 17/62/17")){
+    const marker="test('security gate uses cmd.exe for npm audit on Windows instead of spawning npm.cmd directly'";
+    const testBlock=`test('final P1 contract projection is frozen at 17/62/17',async()=>{\n  const [product,declared,baseline]=await Promise.all([\n    readFile(new URL('../qa/product-contract.json',import.meta.url),'utf8').then(JSON.parse),\n    readFile(new URL('../qa/api-contract.json',import.meta.url),'utf8').then(JSON.parse),\n    readFile(new URL('../qa/api-contract.baseline.json',import.meta.url),'utf8').then(JSON.parse)\n  ]);\n  const current=projectProductContract(product);\n  assert.equal(current.screens.length,17);\n  assert.equal(Object.values(current.actions).flat().length,62);\n  assert.equal(current.rpcMethods.length,17);\n  assert.deepEqual(declared,current);\n  assert.equal(contractDigest(current),baseline.sha256);\n  assert.equal(validateContractSnapshot({declared,current,baseline}),true);\n});\n\n`;
+    if(!text.includes(marker))throw new Error('Missing P2 gate insertion marker');
+    text=text.replace(marker,testBlock+marker);
+  }
+  await write(path,text);
+}
+
 await fixTask1Assertion();
 await writeBackwardCompatibility();
 await enforceFieldDestinationPermissions();
 await fixPasturePolygonNormalization();
 await fixIntegratedE2ESelectors();
-console.log('[PASS] P1D compatibility, RBAC and browser integration patches applied');
+await moveBodyConditionOwnership();
+await freezeFinalContracts();
+await updateOwnershipTestsAndE2E();
+await freezeFinalP2Gate();
+console.log('[PASS] P1D integration, final ownership and contract patches applied');

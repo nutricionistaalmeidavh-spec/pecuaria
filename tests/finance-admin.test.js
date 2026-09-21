@@ -17,6 +17,8 @@ test('administrative finance constructors normalize safe local records',()=>{
   assert.equal(record.partyId,'p1');
   assert.equal(record.lotId,null);
   assert.equal(record.notes,'teste');
+  assert.equal(record.source,'manual');
+  assert.equal(title({source:'reconciliation-adjustment'}).source,'reconciliation-adjustment');
   assert.equal('openAmountMinor' in record,false);
   assert.equal('status' in record,false);
   assert.throws(()=>title({originalAmountMinor:10.5}),/safe integer|minor/i);
@@ -38,7 +40,7 @@ test('title state is derived from immutable settlements and reversals',()=>{
 });
 
 test('cash projection derives realized balances and 7/30/90 forecast without fake observations',()=>{
-  const accounts=[createFinanceAccount({id:'bank',name:'Conta'})];
+  const accounts=[createFinanceAccount({id:'bank',name:'Conta'}),createFinanceAccount({id:'idle',name:'Sem movimento'})];
   const titles=[
     title({id:'pay',originalAmountMinor:10000,dueAt:'2026-09-25T00:00:00Z'}),
     title({id:'recv',direction:'receivable',description:'Venda',originalAmountMinor:30000,dueAt:'2026-10-10T00:00:00Z'})
@@ -51,6 +53,9 @@ test('cash projection derives realized balances and 7/30/90 forecast without fak
   assert.equal(projection.realized.inflowMinor,5000);
   assert.equal(projection.realized.outflowMinor,4000);
   assert.equal(projection.accounts.find(x=>x.accountId==='bank').balanceMinor,-4000);
+  assert.equal(projection.accounts.find(x=>x.accountId==='bank').movementCount,1);
+  assert.equal(projection.accounts.find(x=>x.accountId==='idle').balanceMinor,0);
+  assert.equal(projection.accounts.find(x=>x.accountId==='idle').movementCount,0);
   assert.equal(projection.unallocatedBalanceMinor,5000);
   assert.equal(projection.forecast.days7.payableMinor,6000);
   assert.equal(projection.forecast.days30.receivableMinor,25000);
@@ -67,5 +72,6 @@ test('cash projection nets an immutable settlement reversal to zero realized mov
   assert.equal(projection.realized.outflowMinor,10000);
   assert.equal(projection.realized.netMinor,0);
   assert.equal(projection.accounts[0].balanceMinor,0);
+  assert.equal(projection.accounts[0].movementCount,2);
   assert.equal(projection.forecast.days7.receivableMinor,10000);
 });

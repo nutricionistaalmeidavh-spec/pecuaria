@@ -24,7 +24,13 @@ export function createFinanceAdminService(persistence,{audit=null}={}){
   async function importStatement({sourceName,text}={},context={}){const parsed=parseStatementCsv(text,{sourceName});const result=await runTransaction(persistence,async store=>{const scoped=repositories(store);let imported=0,skipped=0;for(const row of parsed.rows){if(await scoped.reconciliations.get(row.id)){skipped++;continue;}await scoped.reconciliations.save({id:row.id,importId:parsed.fileId,kind:'statement-line',occurredAt:row.occurredAt,description:row.description,amountMinor:row.amountMinor,status:'unreconciled',settlementId:null,adjustmentTitleId:null,adjustmentSettlementId:null},{expectedVersion:0});imported++;}if(!await scoped.imports.get(parsed.fileId))await scoped.imports.save({id:parsed.fileId,kind:'statement',sourceName:parsed.sourceName,rowCount:parsed.rows.length,importedAt:new Date().toISOString()},{expectedVersion:0});return{fileId:parsed.fileId,rowCount:parsed.rows.length,imported,skipped};});await appendAudit(audit,{actorId:context.actorId,action:'cattle.finance.statement.import',entityType:'finance-import',entityId:parsed.fileId,metadata:{rowCount:parsed.rows.length,imported:result.imported,skipped:result.skipped}});return Object.freeze(result);}
   async function reconcileStatement({rowId=null,lineId=null,settlementId=null,mode=null,accountId=null,categoryId=null,operationId=null,description=null,notes=null}={},context={}){
     const id=rowId??lineId;
-    const result=await runTransaction(persistence,async store=>{const scoped=repositories(store),lineRecord=required(await scoped.reconciliations.get(id),'Statement line'),line=lineRecord.payload;if(line.status==='reconciled')throw new Error('Statement line is already reconciled.');let resolvedSettlementId=settlementId,adjustmentTitleId=null,adjustmentSettlementId=null;
+    const result=await runTransaction(persistence,async store=>{const scoped=repositories(store),lineRecord=required(await scoped.reconciliations.get(id),'Statement line'),line=lineRecord.payload;
+      if(line.status==='reconciled'){
+        if(settlementId&&line.settlementId===settlementId&&!line.adjustmentSettlementId)return line;
+        if(mode==='adjustment'&&line.adjustmentSettlementId&&line.settlementId===line.adjustmentSettlementId){const prior=entityOf(await scoped.settlements.get(line.adjustmentSettlementId));if(prior?.operationId===operationId)return line;}
+        throw new Error('Statement line is already reconciled with a different operation.');
+      }
+      let resolvedSettlementId=settlementId,adjustmentTitleId=null,adjustmentSettlementId=null;
       if(settlementId){required(await scoped.settlements.get(settlementId),'Finance settlement');}
       else if(mode==='adjustment'){
         if(!operationId)throw new TypeError('Adjustment operationId is required.');

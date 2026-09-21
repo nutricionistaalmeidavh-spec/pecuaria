@@ -39,3 +39,37 @@ test('statement import is idempotent and invoice import does not create title be
     assert.equal(proposal.suggestion.originalAmountMinor,9990);assert.equal((await db.listRecords('cattle.finance-titles')).length,0);
   }finally{await db.close();await rm(dir,{recursive:true,force:true})}
 });
+
+test('statement reconciliation links an existing settlement once using rowId',async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'pecuaria-fin-reconcile-link-'));const db=await openProductPersistence({dbPath:join(dir,'db.sqlite'),productId:'agro-pecuaria'});const service=createFinanceAdminService(db);
+  try{
+    await service.saveAccount({id:'bank',name:'Banco'});
+    await service.saveTitle({id:'t1',direction:'receivable',description:'Venda',originalAmountMinor:10000,issuedAt:'2026-09-20',dueAt:'2026-09-20'});
+    await service.settleTitle({id:'s1',operationId:'op-s1',titleId:'t1',amountMinor:10000,occurredAt:'2026-09-20',accountId:'bank'});
+    const text='date;description;amount\n2026-09-20;Venda;100,00';
+    const rowId=parseStatementCsv(text,{sourceName:'link.csv'}).rows[0].id;
+    await service.importStatement({sourceName:'link.csv',text});
+    const reconciled=await service.reconcileStatement({rowId,settlementId:'s1'});
+    assert.equal(reconciled.id,rowId);assert.equal(reconciled.status,'reconciled');assert.equal(reconciled.settlementId,'s1');
+    await assert.rejects(()=>service.reconcileStatement({rowId,settlementId:'s1'}),/already reconciled/i);
+    assert.equal((await db.listRecords('cattle.finance-reconciliations')).length,1);
+  }finally{await db.close();await rm(dir,{recursive:true,force:true})}
+});
+
+test('adjustment reconciliation derives deterministic records from rowId without UI-supplied technical ids',async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'pecuaria-fin-reconcile-adjust-'));const db=await openProductPersistence({dbPath:join(dir,'db.sqlite'),productId:'agro-pecuaria'});const service=createFinanceAdminService(db);
+  try{
+    await service.saveAccount({id:'bank',name:'Banco'});
+    const text='date;description;amount\n2026-09-20;Ajuste inicial;-100,00';
+    const rowId=parseStatementCsv(text,{sourceName:'adjust.csv'}).rows[0].id;
+    await service.importStatement({sourceName:'adjust.csv',text});
+    const reconciled=await service.reconcileStatement({rowId,mode:'adjustment',accountId:'bank',operationId:'op-adjust'});
+    assert.equal(reconciled.adjustmentTitleId,`${rowId}:adjustment-title`);
+    assert.equal(reconciled.adjustmentSettlementId,`${rowId}:adjustment-settlement`);
+    const title=(await db.getRecord('cattle.finance-titles',reconciled.adjustmentTitleId)).payload;
+    const settlement=(await db.getRecord('cattle.finance-settlements',reconciled.adjustmentSettlementId)).payload;
+    assert.equal(title.direction,'payable');assert.equal(title.originalAmountMinor,10000);assert.equal(title.source,'reconciliation-adjustment');
+    assert.equal(settlement.operationId,'op-adjust');assert.equal(settlement.accountId,'bank');assert.equal(settlement.amountMinor,10000);
+    assert.equal((await db.listRecords('cattle.finance-titles')).length,1);assert.equal((await db.listRecords('cattle.finance-settlements')).length,1);
+  }finally{await db.close();await rm(dir,{recursive:true,force:true})}
+});

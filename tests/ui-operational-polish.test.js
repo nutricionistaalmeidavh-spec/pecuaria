@@ -64,3 +64,11 @@ test('product status reflects that P1 is already merged on main',async()=>{
   assert.ok(!status.includes('antes do merge em `main`'));
   assert.match(status,/integrados? (?:ao|no) `main`/i);
 });
+
+test('web production build splits React runtime into a dedicated vendor chunk',async()=>{
+  const config=await read('web/vite.config.mjs');
+  assert.match(config,/manualChunks/);
+  assert.match(config,/react-vendor/);
+  assert.match(config,/react-dom/);
+  assert.match(config,/scheduler/);
+});

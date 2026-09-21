@@ -15,7 +15,7 @@ const expectedActions=Object.entries(contract.actions)
   .sort();
 const executionOrder=[
   'lots.save','lots.remove',
-  'animals.save','animals.recordMilk','animals.move','animals.lifecycle','animals.batchMove','animals.batchLifecycle',
+  'animals.save','animals.registerBirth','animals.recordMilk','animals.move','animals.lifecycle','animals.batchMove','animals.batchLifecycle',
   'weights.record',
   'inventory.save','inventory.adjust',
   'sanitary.saveProtocol','sanitary.record','sanitary.batchRecord',
@@ -38,7 +38,7 @@ async function authFor(host){
   return{sessionId:logged.session.id,token:logged.token};
 }
 
-test('scenario registry exactly matches and executes all 61 contracted actions',async()=>{
+test('scenario registry exactly matches and executes all 62 contracted actions',async()=>{
   const root=await mkdtemp(join(tmpdir(),'pecuaria-actions-'));
   let host;
   try{
@@ -73,6 +73,7 @@ test('scenario registry exactly matches and executes all 61 contracted actions',
         return run('lots','remove',{id:'lot-remove',expectedVersion:current.version});
       },
       'animals.save':()=>run('animals','save',createAnimal({id:'animal-action',tag:'ACTION-QA',farmUnitId:'farm-1',lotId:'lot-main',purpose:'dairy'})),
+      'animals.registerBirth':()=>run('animals','registerBirth',{id:'animal-birth',tag:'BIRTH-QA',farmUnitId:'farm-1',birthDate:'2026-09-19T14:40:00Z',sex:'female',damId:'animal-repro',lotId:'lot-main',notes:'qa birth'}),
       'animals.recordMilk':()=>run('animals','recordMilk',{id:'animal-action',liters:12.5,measuredAt:'2026-09-19T14:45:00Z'}),
       'animals.move':()=>run('animals','move',{id:'animal-move',toLotId:'lot-target',movedAt:'2026-09-19T15:00:00Z',reason:'qa'}),
       'animals.lifecycle':()=>run('animals','lifecycle',{id:'animal-life',type:'death',occurredAt:'2026-09-19T15:05:00Z',reason:'qa'}),
@@ -178,7 +179,7 @@ test('scenario registry exactly matches and executes all 61 contracted actions',
 
     assert.deepEqual(Object.keys(scenarios).sort(),expectedActions);
     assert.deepEqual([...executionOrder].sort(),expectedActions);
-    assert.equal(expectedActions.length,61);
+    assert.equal(expectedActions.length,62);
 
     const covered=[];
     for(const key of executionOrder){

@@ -39,6 +39,7 @@
     ],
     "animals": [
       "save",
+      "registerBirth",
       "recordMilk",
       "move",
       "lifecycle",

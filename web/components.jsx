@@ -106,17 +106,17 @@ export function WorkspaceScreen({screenId,screen,icon,records,onAction,allowedAc
   </section>;
 }
 
-const technicalFieldsByTitle={
-  'Salvar título':new Set(['id']),
-  'Baixar título':new Set(['id','operationId']),
-  'Estornar baixa':new Set(['id','operationId']),
-  'Conciliar linha':new Set(['operationId'])
+const technicalFieldsByAction={
+  'finance.saveTitle':new Set(['id']),
+  'finance.settleTitle':new Set(['id','operationId']),
+  'finance.reverseSettlement':new Set(['id','operationId']),
+  'finance.reconcileStatement':new Set(['operationId'])
 };
-const technicalPrefixByTitle={
-  'Salvar título':[['id','title']],
-  'Baixar título':[['id','settlement'],['operationId','settlement-op']],
-  'Estornar baixa':[['id','reversal'],['operationId','reversal-op']],
-  'Conciliar linha':[['operationId','reconciliation-op']]
+const technicalPrefixByAction={
+  'finance.saveTitle':[['id','title']],
+  'finance.settleTitle':[['id','settlement'],['operationId','settlement-op']],
+  'finance.reverseSettlement':[['id','reversal'],['operationId','reversal-op']],
+  'finance.reconcileStatement':[['operationId','reconciliation-op']]
 };
 const isMoneyField=field=>field.moneyMinor===true||/\(centavos\)/i.test(field.label??'');
 const moneyLabel=label=>String(label).replace(/\s*\(centavos\)/i,' (R$)');
@@ -130,18 +130,18 @@ const moneyToMinor=value=>{
 };
 const technicalId=prefix=>`${prefix}-${crypto.randomUUID()}`;
 
-export function ActionDialog({open,definition,onClose,onSubmit,busy=false,references={}}){
+export function ActionDialog({open,definition,actionKey,onClose,onSubmit,busy=false,references={}}){
   const [values,setValues]=useState({});
   useEffect(()=>{if(open)setValues({...definition?.defaults})},[open,definition]);
   if(!open||!definition)return null;
   const change=(name,value)=>setValues(current=>({...current,[name]:value}));
-  const hidden=technicalFieldsByTitle[definition.title]??new Set();
+  const hidden=technicalFieldsByAction[actionKey]??new Set();
   const visibleFields=definition.fields.filter(field=>!hidden.has(field.name));
   const submit=async e=>{
     e.preventDefault();
     const prepared={...values};
     for(const field of definition.fields)if(isMoneyField(field)&&prepared[field.name]!==''&&prepared[field.name]!=null)prepared[field.name]=moneyToMinor(prepared[field.name]);
-    for(const [name,prefix] of technicalPrefixByTitle[definition.title]??[])if(!prepared[name])prepared[name]=technicalId(prefix);
+    for(const [name,prefix] of technicalPrefixByAction[actionKey]??[])if(!prepared[name])prepared[name]=technicalId(prefix);
     await onSubmit(definition.normalize(prepared));
   };
   return <div className="dialog-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><section className="dialog" role="dialog" aria-modal="true" aria-label={definition.title}><header><div><small>Ação</small><h2>{definition.title}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Fechar">×</button></header><form onSubmit={submit}><div className="form-grid">{visibleFields.map(f=><label key={f.name}><span>{isMoneyField(f)?moneyLabel(f.label):f.label}</span>{f.acceptFile?<><input type="file" accept={f.acceptFile} onChange={async e=>{const file=e.target.files?.[0];if(file)change(f.name,await file.text())}}/><textarea data-testid={`field-${f.name}`} rows="5" value={values[f.name]??''} onChange={e=>change(f.name,e.target.value)}/></>:f.refCollection&&f.type==='list'?<select multiple data-testid={`field-${f.name}`} value={Array.isArray(values[f.name])?values[f.name]:[]} onChange={e=>change(f.name,[...e.target.selectedOptions].map(o=>o.value))}>{(references[f.refCollection]??[]).map(item=><option value={item.id} key={item.id}>{item.tag??item.name??item.officialId??item.id}</option>)}</select>:f.refCollection?<select data-testid={`field-${f.name}`} value={values[f.name]??''} onChange={e=>change(f.name,e.target.value)}><option value="">Selecione</option>{(references[f.refCollection]??[]).map(item=><option value={item.id} key={item.id}>{item.tag??item.name??item.officialId??item.id}</option>)}</select>:f.type==='select'?<select data-testid={`field-${f.name}`} value={values[f.name]??''} onChange={e=>change(f.name,e.target.value)}><option value="">Selecione</option>{(f.options??[]).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select>:f.type==='textarea'||f.type==='list'?<textarea data-testid={`field-${f.name}`} rows={f.type==='list'?3:5} placeholder={f.placeholder} value={values[f.name]??''} onChange={e=>change(f.name,e.target.value)}/>:<input data-testid={`field-${f.name}`} type={isMoneyField(f)?'text':f.type} inputMode={isMoneyField(f)?'decimal':undefined} step={f.step} placeholder={isMoneyField(f)?'0,00':f.placeholder} value={values[f.name]??''} onChange={e=>change(f.name,e.target.value)}/>}</label>)}</div><footer><button type="button" className="ghost" onClick={onClose}>Cancelar</button><button data-testid="action-submit" className="primary" disabled={busy}>{busy?'Executando…':'Confirmar'}</button></footer></form></section></div>;

@@ -54,7 +54,6 @@ export function deriveTitleState(title,settlements=[]){
 
 function effectiveSettlements(titles,settlements){
   const titleById=new Map(titles.map(item=>[item.id,item]));
-  const reversedIds=new Set(settlements.filter(item=>item.reversesSettlementId).map(item=>item.reversesSettlementId));
   const rows=[];
   for(const settlement of settlements){
     const title=titleById.get(settlement.titleId);if(!title)continue;
@@ -64,7 +63,6 @@ function effectiveSettlements(titles,settlements){
       rows.push({settlement,title,sign:title.direction==='receivable'?-1:1,amountMinor:Number(settlement.amountMinor)||0,accountId:settlement.accountId??original.accountId??null});
       continue;
     }
-    if(reversedIds.has(settlement.id))continue;
     rows.push({settlement,title,sign:title.direction==='receivable'?1:-1,amountMinor:Number(settlement.amountMinor)||0,accountId:settlement.accountId??title.accountId??null});
   }
   return rows;

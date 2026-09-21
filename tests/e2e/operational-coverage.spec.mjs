@@ -62,7 +62,7 @@ family('sale','simula, vende, encerra animal e confirma lançamento financeiro',
   const inputs=simulator.locator('input');await inputs.nth(0).fill('52');await inputs.nth(1).fill('30000');
   await simulator.getByRole('button',{name:/Simular/i}).click();await expect(simulator).toContainText(/@|líquido|cenário/i);
   expect(await listDbRecords(page,'cattle.trades')).toHaveLength(0);
-  await runAction(page,'trades','create',{id:'sale-e2e',type:'sale',partyId:'buyer-e2e',animalIds:['cow-sale'],occurredAt:'2026-09-21T12:00',carcassYieldPct:'52',pricePerCarcassArrobaMinor:'30000',deductionsMinor:'1000',freightMinor:'2000',commissionMinor:'500'});
+  await runAction(page,'trades','create',{id:'sale-e2e',type:'sale',partyId:'buyer-e2e',animalIds:['cow-sale'],occurredAt:'2026-09-21T12:00',liveWeightKg:'500',carcassYieldPct:'52',pricePerCarcassArrobaMinor:'30000',deductionsMinor:'1000',freightMinor:'2000',commissionMinor:'500'});
   const animal=await expectRecord(page,'cattle.animals','cow-sale');expect(animal.payload.status).not.toBe('active');expect(animal.payload.lifecycle.at(-1).type).toBe('sale');
   await expectRecord(page,'cattle.trades','sale-e2e');const finance=await expectRecord(page,'cattle.finance','sale-e2e:finance');expect(finance.payload.amountMinor).toBeGreaterThan(0);
   await navigate(page,'finance');await expect(page.getByTestId('workspace-screen')).toContainText('sale-e2e');
@@ -145,8 +145,10 @@ family('fieldOffline','opera em campo, sincroniza pacote, persiste e detecta con
   syncCard=fieldPage.getByTestId('field-secure-sync');await syncCard.locator('input[type=file]').last().setInputFiles({name:'snapshot.sync.json',mimeType:'application/json',buffer:snapshotBundle});
 
   await fieldSwitcher.getByRole('button',{name:'Tarefas',exact:true}).click();const queue=fieldPage.getByTestId('field-task-queue');await expect(queue).toContainText('Aplicar E2E');await queue.locator('article').filter({hasText:'Aplicar E2E'}).getByRole('button',{name:'Concluir'}).click();
+  await expect.poll(async()=>{const row=await openDbRecord(fieldPage,'cattle.tasks','task-apply');return row?.payload?.status}).toBe('completed');
   await fieldSwitcher.getByRole('button',{name:'Mover',exact:true}).click();const move=fieldPage.getByTestId('field-quick-move');await move.getByLabel('Animal').selectOption('cow-field');await move.getByLabel('Destino').selectOption('lot-conflict');await move.getByRole('button',{name:'Mover animal'}).click();
-  expect((await openDbRecord(fieldPage,'cattle.animals','cow-field')).payload.lotId).toBe('lot-conflict');
+  await expect.poll(async()=>{const row=await openDbRecord(fieldPage,'cattle.animals','cow-field');return row?.payload?.lotId}).toBe('lot-conflict');
+  await expect.poll(async()=>{const rows=await listDbRecords(fieldPage,'cattle.field-sync-queue');return rows.filter(row=>row.payload.status==='ready').length}).toBe(2);
 
   await runAction(basePage,'lots','remove',{id:'lot-conflict',expectedVersion:'1'});
   await fieldSwitcher.getByRole('button',{name:'Sincronizar',exact:true}).click();downloadPromise=fieldPage.waitForEvent('download');await fieldPage.getByRole('button',{name:'Exportar pacote'}).click();const fieldBundle=await fileFromDownload(await downloadPromise);
@@ -167,7 +169,8 @@ family('backup','cria snapshot, altera dados, restaura e confirma estado anterio
 });
 
 family('updates','exige ações explícitas para verificar, baixar e instalar',async({page})=>{
-  await page.addInitScript(()=>{
+  await login(page);
+  await page.evaluate(()=>{
     window.__updateCalls={check:0,download:0,install:0};
     window.artisys={updates:{
       state:async()=>({status:'current',currentVersion:'1.0.1',availableVersion:null}),
@@ -177,7 +180,7 @@ family('updates','exige ações explícitas para verificar, baixar e instalar',a
       install:async()=>{window.__updateCalls.install++;return{status:'installing',currentVersion:'1.0.1',availableVersion:'1.0.2'}}
     }};
   });
-  await login(page);await navigate(page,'settings');expect(await page.evaluate(()=>window.__updateCalls)).toEqual({check:0,download:0,install:0});
+  await navigate(page,'settings');await expect(page.getByTestId('check-updates')).toBeVisible();expect(await page.evaluate(()=>window.__updateCalls)).toEqual({check:0,download:0,install:0});
   await page.getByTestId('check-updates').click();await expect(page.getByTestId('update-available')).toBeVisible();expect(await page.evaluate(()=>window.__updateCalls)).toEqual({check:1,download:0,install:0});
   await page.getByRole('button',{name:'Baixar atualização'}).click();await expect(page.getByTestId('update-downloaded')).toBeVisible();expect(await page.evaluate(()=>window.__updateCalls)).toEqual({check:1,download:1,install:0});
   await page.getByRole('button',{name:'Instalar e reiniciar'}).click();await expect.poll(()=>page.evaluate(()=>window.__updateCalls.install)).toBe(1);

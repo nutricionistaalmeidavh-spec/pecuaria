@@ -11,7 +11,7 @@ let updates;
 
 app.whenReady().then(async()=>{
   host=await createStandaloneHost({dataDir:join(app.getPath('userData'),'data')});
-  for(const n of ['describe','authState','bootstrap','login','validate','logout','search','alerts','audit','insights','simulateSale','reproductionAdmin','userAdmin','fieldSync','references','load','action'])ipcMain.handle(`artisys:${n}`,(_e,p)=>host.backend[n](p));
+  for(const n of ['describe','authState','bootstrap','login','validate','logout','search','alerts','audit','insights','simulateSale','reproductionAdmin','userAdmin','fieldSync','references','load','action','maps'])ipcMain.handle(`artisys:${n}`,(_e,p)=>host.backend[n](p));
   win=new BrowserWindow({width:1440,height:900,minWidth:1024,minHeight:680,show:false,webPreferences:{preload:join(here,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
   updates=createUpdateController({ipcMain,getWebContents:()=>win?.webContents??null});
   await win.loadFile(join(here,'../dist/index.html'));

@@ -4,7 +4,10 @@ import {fileURLToPath} from 'node:url';
 import {loadSqlMigrations,openProductPersistence} from '../shared/packages/vertical-persistence/src/index.js';
 import {createBackupManager} from '../src/backup.js';
 import {createCattlePresentation} from '../src/presentation.js';
+import {createCattleMapService} from '../src/pecuaria-map.js';
 import {createRpcBackend} from './backend.mjs';
+import {createMapCatalog} from './map-catalog.mjs';
+import {createMapRpc} from './map-rpc.mjs';
 import {createNodeIoTDrivers} from './iot/node-drivers.mjs';
 import {createLocalSecretStore} from './iot/secret-store.mjs';
 
@@ -27,10 +30,13 @@ export async function createStandaloneHost({dataDir,backupDir=join(dataDir,'back
   const secretStore=await createLocalSecretStore({directory:join(dataDir,'iot')});
   const drivers=createNodeIoTDrivers();
   const presentation=createCattlePresentation({persistence,recovery,iotRuntime:{drivers,secretStore}});
-  const backend=createRpcBackend({presentation,persistence});
+  const mapService=createCattleMapService(persistence);
+  const mapCatalog=createMapCatalog({dataDir});
+  const coreBackend=createRpcBackend({presentation,persistence});
+  const backend=Object.freeze({...coreBackend,maps:createMapRpc({presentation,mapService,mapCatalog})});
   const iotStartup=Promise.resolve().then(()=>presentation.services.iot.startEnabled()).catch(()=>[]);
   return{
-    persistence,recovery,presentation,backend,
+    persistence,recovery,presentation,backend,mapService,mapCatalog,
     async close(){await iotStartup;await presentation.services.iot.shutdown();await closeDatabase();}
   };
 }

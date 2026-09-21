@@ -10,10 +10,18 @@ test('P1 exposes Dispositivos e IoT in product navigation',()=>{
   assert.equal(item?.label,'Dispositivos e IoT');
 });
 
-test('IoT permissions allow operational manager and admin writes',()=>{
+test('IoT permissions separate RFID binding from device administration',()=>{
   assert.equal(SECURITY_POLICY.manager.includes('iot:read'),true);
   assert.equal(SECURITY_POLICY.manager.includes('iot:write'),true);
-  assert.deepEqual(PRESENTATION_ACCESS.screens.iot,{read:'iot:read',write:'iot:write'});
+  assert.equal(SECURITY_POLICY.manager.includes('iot:bind'),true);
+  assert.equal(SECURITY_POLICY['field-operator'].includes('iot:bind'),true);
+  assert.equal(SECURITY_POLICY['field-operator'].includes('iot:read'),false);
+  assert.equal(SECURITY_POLICY['field-operator'].includes('iot:write'),false);
+  assert.deepEqual(PRESENTATION_ACCESS.screens.iot,{
+    read:'iot:read',
+    write:'iot:write',
+    actions:{bindRfid:'iot:bind',unbindRfid:'iot:bind'}
+  });
   assert.deepEqual(SECURITY_POLICY.admin,['*']);
 });
 

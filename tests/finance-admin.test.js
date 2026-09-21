@@ -56,3 +56,16 @@ test('cash projection derives realized balances and 7/30/90 forecast without fak
   assert.equal(projection.forecast.days30.receivableMinor,25000);
   assert.equal(projection.forecast.days90.receivableMinor,25000);
 });
+
+test('cash projection nets an immutable settlement reversal to zero realized movement',()=>{
+  const accounts=[createFinanceAccount({id:'bank',name:'Conta'})];
+  const titles=[title({id:'recv',direction:'receivable',description:'Venda',originalAmountMinor:10000,dueAt:'2026-09-25T00:00:00Z'})];
+  const original=createSettlement({id:'s1',operationId:'op-1',titleId:'recv',amountMinor:10000,occurredAt:'2026-09-20T10:00:00Z',accountId:'bank'});
+  const reversal=createSettlement({id:'r1',operationId:'op-2',titleId:'recv',amountMinor:10000,occurredAt:'2026-09-20T11:00:00Z',accountId:'bank',reversesSettlementId:'s1'});
+  const projection=buildCashProjection({titles,settlements:[original,reversal],accounts,asOf:'2026-09-20T12:00:00Z'});
+  assert.equal(projection.realized.inflowMinor,10000);
+  assert.equal(projection.realized.outflowMinor,10000);
+  assert.equal(projection.realized.netMinor,0);
+  assert.equal(projection.accounts[0].balanceMinor,0);
+  assert.equal(projection.forecast.days7.receivableMinor,10000);
+});

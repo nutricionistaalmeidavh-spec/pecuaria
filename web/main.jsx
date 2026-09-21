@@ -210,7 +210,7 @@ function App(){
       {screenId==='trades'&&<CommercialSummaryPanel insights={depthInsights}/>} 
       {screenId==='trades'&&<CommercialSimulator lots={references.lots??[]} result={simulationResult} onSimulate={async input=>{try{setSimulationResult(await backend.simulateSale({auth,...input}))}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
       {screenId==='reports'&&<AdvancedReportsPanel lots={references.lots??[]} onGenerate={async({format,...input})=>{try{const result=await backend.action({screenId:'reports',action:format,input,auth,context:{}});surfaceResult(result,{screen:'reports',name:format})}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
-      {screenId==='tasks'&&<FieldMobileWorkspace tasks={rows} animals={references.animals??[]} lots={references.lots??[]} protocols={references.protocols??[]} syncState={fieldSyncState} onSync={runFieldSync}/>} 
+      {screenId==='tasks'&&<FieldMobileWorkspace tasks={rows} animals={references.animals??[]} lots={references.lots??[]} protocols={references.protocols??[]} fieldData={references} syncState={fieldSyncState} onSync={runFieldSync}/>} 
       {screenId==='iot'&&<IoTDetailsPanel data={data}/>} 
       {screenId==='weights'&&<CorralFlow animals={references.animals??[]} onRecord={async input=>{await runAction('weights','record',input);await load('weights');backend.references({auth}).then(setReferences)}}/>}
       {screenId==='animals'&&animalDetail&&<AnimalDetail detail={animalDetail} onClose={()=>setAnimalDetail(null)}/>} 

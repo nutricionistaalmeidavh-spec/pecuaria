@@ -14,7 +14,7 @@ export function createFinanceCategory({id,name,direction='both',active=true}={})
 }
 
 export function createFinancialTitle({
-  id,direction,description,originalAmountMinor,issuedAt,dueAt,categoryId=null,accountId=null,partyId=null,lotId=null,tradeId=null,documentRef=null,notes=null,cancelledAt=null,cancelReason=null
+  id,direction,description,originalAmountMinor,issuedAt,dueAt,categoryId=null,accountId=null,partyId=null,lotId=null,tradeId=null,documentRef=null,notes=null,source='manual',cancelledAt=null,cancelReason=null
 }={}){
   if(!['payable','receivable'].includes(direction))throw new TypeError('Financial title direction must be payable or receivable.');
   const issued=iso(issuedAt,'Issued at'),due=iso(dueAt,'Due at');
@@ -23,7 +23,7 @@ export function createFinancialTitle({
     id:text(id,'Financial title id'),direction,description:text(description,'Financial title description'),
     originalAmountMinor:money(originalAmountMinor,'Original amount',{positive:true}),issuedAt:issued,dueAt:due,
     categoryId:optionalText(categoryId),accountId:optionalText(accountId),partyId:optionalText(partyId),lotId:optionalText(lotId),tradeId:optionalText(tradeId),
-    documentRef:optionalText(documentRef),notes:optionalText(notes),cancelledAt:cancelledAt?iso(cancelledAt,'Cancelled at'):null,cancelReason:optionalText(cancelReason)
+    documentRef:optionalText(documentRef),notes:optionalText(notes),source:text(source,'Financial title source'),cancelledAt:cancelledAt?iso(cancelledAt,'Cancelled at'):null,cancelReason:optionalText(cancelReason)
   });
 }
 
@@ -73,10 +73,14 @@ export function buildCashProjection({titles=[],settlements=[],accounts=[],asOf=n
   const effective=effectiveSettlements(titles,settlements);
   let inflowMinor=0,outflowMinor=0,unallocatedBalanceMinor=0;
   const balances=new Map(accounts.map(account=>[account.id,0]));
+  const movementCounts=new Map(accounts.map(account=>[account.id,0]));
   for(const row of effective){
     if(row.sign>0)inflowMinor+=row.amountMinor;else outflowMinor+=row.amountMinor;
     const signed=row.sign*row.amountMinor;
-    if(row.accountId&&balances.has(row.accountId))balances.set(row.accountId,balances.get(row.accountId)+signed);else unallocatedBalanceMinor+=signed;
+    if(row.accountId&&balances.has(row.accountId)){
+      balances.set(row.accountId,balances.get(row.accountId)+signed);
+      movementCounts.set(row.accountId,(movementCounts.get(row.accountId)??0)+1);
+    }else unallocatedBalanceMinor+=signed;
   }
   const forecast={};
   for(const days of [7,30,90]){
@@ -90,7 +94,7 @@ export function buildCashProjection({titles=[],settlements=[],accounts=[],asOf=n
   }
   return Object.freeze({
     realized:Object.freeze({inflowMinor,outflowMinor,netMinor:inflowMinor-outflowMinor}),
-    accounts:Object.freeze(accounts.map(account=>Object.freeze({accountId:account.id,name:account.name,balanceMinor:balances.get(account.id)??0}))),
+    accounts:Object.freeze(accounts.map(account=>Object.freeze({accountId:account.id,name:account.name,balanceMinor:balances.get(account.id)??0,movementCount:movementCounts.get(account.id)??0}))),
     unallocatedBalanceMinor,forecast:Object.freeze(forecast)
   });
 }

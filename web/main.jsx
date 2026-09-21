@@ -130,8 +130,9 @@ function App(){
   async function login(event){
     event.preventDefault();setNotice(null);
     try{
-      if(!hasUsers)await backend.bootstrap(credentials);
+      if(!hasUsers){await backend.bootstrap(credentials);setHasUsers(true)}
       const result=await backend.login(credentials);
+      setHasUsers(true);
       setMeta(null);
       setScreenId(null);
       const nextAuth={sessionId:result.session.id,token:result.token};setAuth(nextAuth);backend.references({auth:nextAuth}).then(setReferences).catch(()=>{});

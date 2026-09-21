@@ -5,7 +5,8 @@ const text=(value,field)=>{const result=String(value??'').trim();if(!result)thro
 const state=(status,error=null)=>Object.freeze({status,error});
 
 function extractPayload(device,payload){
-  if(Buffer.isBuffer(payload)||typeof payload!=='object'||payload===null)return payload;
+  const isBuffer=Boolean(globalThis.Buffer?.isBuffer?.(payload));
+  if(isBuffer||typeof payload!=='object'||payload===null)return payload;
   if(Object.prototype.hasOwnProperty.call(payload,'payload'))return payload.payload;
   if(device.kind==='rfid')return payload.tagId??payload.rfid??payload.tag??payload.value??payload.id??'';
   if(device.kind==='scale'){

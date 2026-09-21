@@ -1,5 +1,5 @@
 export function normalizeScaleReading(payload) {
-  const raw = Buffer.isBuffer(payload) ? payload.toString('utf8') : String(payload ?? '');
+  const raw = globalThis.Buffer?.isBuffer?.(payload) ? payload.toString('utf8') : String(payload ?? '');
   const match = raw.match(/[+-]?\d+(?:[.,]\d+)?/);
   if (!match) throw new TypeError('Scale reading does not contain a numeric weight');
 

@@ -21,7 +21,7 @@ export function createRpcBackend({presentation,persistence=null}){
       return{
         productId:security.productId,
         brand:presentation.shell.brand,
-        navigation:presentation.shell.navigation,
+        navigation:auth?presentation.shell.navigation.filter(item=>access[item.id]?.read):presentation.shell.navigation,
         screens:presentation.screenIds().map(id=>clean(presentation.screen(id))),
         access
       };

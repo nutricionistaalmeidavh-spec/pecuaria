@@ -101,7 +101,7 @@ export async function seedAnimal(page,{id='animal-e2e',tag='E2E-001',farmUnitId=
 }
 
 export async function seedParty(page,id='party-e2e'){
-  await runAction(page,'data','saveParty',{id,name:`Parte ${id}`,roles:'customer,slaughterhouse',document:'12345678900'});
+  await runAction(page,'data','saveParty',{id,name:`Parte ${id}`,roles:'buyer,slaughterhouse',document:'12345678900'});
   return id;
 }
 

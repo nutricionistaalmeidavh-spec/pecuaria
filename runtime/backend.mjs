@@ -83,6 +83,7 @@ export function createRpcBackend({presentation,persistence=null}){
       if(operation==='quick'){
         const authorized=await session(auth,'cattle:write');
         const prepared=await fieldSynchronization.prepareQuick({...input,actorId:authorized.user.id});
+        await session(auth,permission(prepared.command.screenId,'write',prepared.command.action));
         try{
           const result=await presentation.action(prepared.command.screenId,prepared.command.action,prepared.command.input,{actorId:authorized.user.id,fieldOperationId:prepared.operation.id});
           await fieldSynchronization.markQuickApplied(prepared.operation.id);
@@ -94,7 +95,7 @@ export function createRpcBackend({presentation,persistence=null}){
       }
       if(operation==='importBundle'){
         const authorized=await session(auth,'cattle:write');
-        const result=await fieldSynchronization.importBundle(input.bundle,{apply:command=>presentation.action(command.screenId,command.action,command.input,{actorId:authorized.user.id,fieldSync:true})});
+        const result=await fieldSynchronization.importBundle(input.bundle,{apply:async command=>{await session(auth,permission(command.screenId,'write',command.action));return presentation.action(command.screenId,command.action,command.input,{actorId:authorized.user.id,fieldSync:true});}});
         await presentation.services.audit?.append?.({actorId:authorized.user.id,action:'field.sync.import',entityType:'field-device',entityId:result.state.deviceId,metadata:{applied:result.operations.applied,skipped:result.operations.skipped,conflicts:result.operations.conflicts,snapshotApplied:result.snapshot.applied}});
         return result;
       }

@@ -19,12 +19,12 @@ test('createBirthRecords validates required fields and builds one deterministic 
   const result=createBirthRecords(validBirth());
   assert.equal(result.animal.id,'calf-1');
   assert.equal(result.animal.tag,'CALF-001');
-  assert.equal(result.animal.birthDate,'2026-09-20T08:00:00Z');
+  assert.equal(result.animal.birthDate,'2026-09-20T08:00:00.000Z');
   assert.equal(result.animal.damId,'dam-1');
   assert.equal(result.animal.sireId,'sire-1');
   assert.equal(result.animal.rfid,'EID-CALF-001');
   assert.deepEqual(result.birthEvent,{
-    id:'calf-1:birth',kind:'birth',type:'birth',animalId:'calf-1',relatedAnimalId:'dam-1',occurredAt:'2026-09-20T08:00:00Z',metadata:{sireId:'sire-1',notes:'parto sem intercorrência'}
+    id:'calf-1:birth',kind:'birth',type:'birth',animalId:'calf-1',relatedAnimalId:'dam-1',occurredAt:'2026-09-20T08:00:00.000Z',metadata:{sireId:'sire-1',notes:'parto sem intercorrência'}
   });
   for(const field of ['id','tag','farmUnitId','birthDate','sex'])assert.throws(()=>createBirthRecords(validBirth({[field]:''})),/required/i);
 });

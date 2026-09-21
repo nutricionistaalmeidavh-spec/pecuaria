@@ -1,0 +1,29 @@
+name: P1 Review Fix
+on:
+  push:
+    branches: [p1-operational-depth]
+    paths:
+      - '.github/workflows/p1-review-fix.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: p1-operational-depth
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply reviewed fixes
+        run: node tooling/p1-review-fix.mjs
+      - name: Commit reviewed fixes and remove applicator
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/action-config.js src/presentation.js
+          git rm tooling/p1-review-fix.mjs .github/workflows/p1-review-fix.yml
+          git commit -m "fix: close P1 review gaps"
+          git push origin HEAD:p1-operational-depth

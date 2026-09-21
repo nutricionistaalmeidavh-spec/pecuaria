@@ -14,12 +14,14 @@ test('money fields are presented in reais while contracts keep integer minor uni
   assert.match(components,/inputMode=\{isMoneyField\(f\)\?'decimal'/);
 });
 
-test('technical finance ids are hidden and generated inside the UI boundary',async()=>{
+test('technical finance ids are hidden and generated inside the UI boundary by action key',async()=>{
   const components=await read('web/components.jsx');
-  assert.match(components,/'Salvar título':new Set\(\['id'\]\)/);
-  assert.match(components,/'Baixar título':new Set\(\['id','operationId'\]\)/);
-  assert.match(components,/'Estornar baixa':new Set\(\['id','operationId'\]\)/);
+  assert.match(components,/const technicalFieldsByAction=/);
+  assert.match(components,/'finance\.saveTitle':new Set\(\['id'\]\)/);
+  assert.match(components,/'finance\.settleTitle':new Set\(\['id','operationId'\]\)/);
+  assert.match(components,/'finance\.reverseSettlement':new Set\(\['id','operationId'\]\)/);
   assert.match(components,/crypto\.randomUUID\(\)/);
+  assert.match(components,/ActionDialog\(\{open,definition,actionKey/);
 });
 
 test('workspace action labels are localized and domain table adds local usability',async()=>{
@@ -38,6 +40,15 @@ test('finance workspace exposes contextual title settlement reversal and reconci
   assert.match(source,/Valor \(R\$\)/);
   assert.ok(!source.includes('ID da operação'));
   assert.match(source,/crypto\.randomUUID\(\)/);
+});
+
+test('contextual finance mutations follow the same allowed action set as generic workspace actions',async()=>{
+  const [finance,main]=await Promise.all([read('web/finance-admin.jsx'),read('web/main.jsx')]);
+  assert.match(finance,/FinanceAdminWorkspace\(\{data,onRun,allowedActions/);
+  assert.match(finance,/const can=action=>allowedActions\.includes\(action\)/);
+  for(const action of ['settleTitle','cancelTitle','reverseSettlement','reconcileStatement'])assert.match(finance,new RegExp(`can\\('${action}'\\)`));
+  assert.match(main,/allowedActions=\{meta\?\.access\?\.finance\?\.actions\?\?\[\]\}/);
+  assert.match(main,/actionKey=\{action\?`\$\{screenId\}\.\$\{action\}`:null\}/);
 });
 
 test('navigation and workspace copy reflect the deeper product surface',async()=>{

@@ -199,7 +199,7 @@ test('scenario registry exactly matches and executes all 62 contracted actions',
     const birthEvents=await repos.events.list();
     assert.ok(birthEvents.some(record=>record.id==='animal-birth:birth'&&record.payload?.kind==='birth'&&record.payload?.animalId==='animal-birth'));
 
-    const finance=await host.presentation.services.financeAdmin.snapshot({asOf:'2026-09-21T00:00:00Z'});
+    const finance=(await host.presentation.load('finance')).admin;
     const title=finance.titles.find(item=>item.id==='fin-title-qa');
     assert.equal(title?.openAmountMinor,100000);
     assert.equal(title?.status,'open');

@@ -155,7 +155,7 @@ family('fieldOffline','opera em campo, sincroniza pacote, persiste e detecta con
 
   await runAction(basePage,'lots','remove',{id:'lot-conflict',expectedVersion:'1'});
   await fieldSwitcher.getByRole('button',{name:'Sincronizar',exact:true}).click();downloadPromise=fieldPage.waitForEvent('download');await fieldPage.getByRole('button',{name:'Exportar pacote'}).click();const fieldBundle=await fileFromDownload(await downloadPromise);
-  await baseSwitcher.getByRole('button',{name:'Sincronizar',exact:true}).click();syncCard=basePage.getByTestId('field-secure-sync');await syncCard.locator('input[type=file]').last().setInputFiles({name:'field.sync.json',mimeType:'application/json',buffer:fieldBundle});
+  await navigate(basePage,'tasks');await baseSwitcher.getByRole('button',{name:'Sincronizar',exact:true}).click();syncCard=basePage.getByTestId('field-secure-sync');await syncCard.locator('input[type=file]').last().setInputFiles({name:'field.sync.json',mimeType:'application/json',buffer:fieldBundle});
 
   const applied=await expectRecord(basePage,'cattle.tasks','task-apply');expect(applied.payload.status).toBe('completed');expect((await openDbRecord(basePage,'cattle.animals','cow-field')).payload.lotId).toBe('lot-e2e');
   const receipts=await listDbRecords(basePage,'cattle.field-sync-receipts');expect(receipts.some(row=>row.payload.status==='conflict'&&row.payload.kind==='animal.move')).toBe(true);

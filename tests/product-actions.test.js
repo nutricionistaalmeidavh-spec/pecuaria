@@ -1,128 +1,184 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm} from 'node:fs/promises';
-import {join} from 'node:path';
+import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {createStandaloneHost} from '../runtime/host.mjs';
+import {createCattleRepositories,createSanitaryProtocol} from '../src/catalog.js';
+import {createAnimal,createCattleLot} from '../src/index.js';
+import {createSecurityService} from '../src/security.js';
 import {openProductPersistence} from '../shared/packages/vertical-persistence/src/index.js';
-import {createCattlePresentation} from '../src/presentation.js';
-import {createCattleSecurity} from '../src/security.js';
-import {createCattleRpc} from '../runtime/backend.mjs';
-import productContract from '../qa/product-contract.json' with {type:'json'};
 
+const contract=JSON.parse(await readFile(new URL('../qa/product-contract.json',import.meta.url),'utf8'));
+const expectedActions=Object.entries(contract.actions)
+  .flatMap(([screen,actions])=>actions.map(action=>`${screen}.${action}`))
+  .sort();
 const executionOrder=[
-  'data.saveFarmUnit','data.saveBreed','data.saveCategory','data.saveParty',
-  'lots.save','animals.save','animals.save','animals.save','animals.recordMilk','animals.move','animals.batchMove','animals.lifecycle','animals.batchLifecycle','weights.record',
-  'sanitary.saveProtocol','inventory.save','sanitary.record','sanitary.batchRecord',
+  'lots.save','lots.remove',
+  'animals.save','animals.recordMilk','animals.move','animals.lifecycle','animals.batchMove','animals.batchLifecycle',
+  'weights.record',
+  'inventory.save','inventory.adjust',
+  'sanitary.saveProtocol','sanitary.record','sanitary.batchRecord',
   'reproduction.record','reproduction.batchRecord',
-  'trades.create','trades.create','finance.addCost','finance.fromTrade','finance.saveAccount','finance.saveCategory','finance.saveTitle','finance.settleTitle','finance.reverseSettlement','finance.importStatement','finance.reconcileStatement','finance.importInvoiceXml','finance.cancelTitle',
-  'traceability.save','traceability.remove','inventory.adjust',
+  'trades.create','finance.addCost','finance.fromTrade','finance.saveAccount','finance.saveCategory','finance.saveTitle','finance.settleTitle','finance.importStatement','finance.reconcileStatement','finance.reverseSettlement','finance.cancelTitle','finance.importInvoiceXml',
+  'traceability.save','traceability.remove',
   'pastures.save','pastures.enterLot','pastures.recordAssessment','pastures.recordBodyCondition','pastures.saveRotationPlan','pastures.leaveLot',
-  'nutrition.save','nutrition.consume','tasks.save','tasks.complete',
+  'nutrition.save','nutrition.consume',
+  'tasks.save','tasks.complete',
+  'data.saveFarmUnit','data.saveBreed','data.saveCategory','data.saveParty','data.exportCollection','data.validateImport','data.importCollection',
   'reports.csv','reports.pdf','reports.issue',
-  'data.exportCollection','data.validateImport','data.importCollection',
-  'iot.saveDevice','iot.testDevice','iot.startDevice','iot.simulateRfid','iot.simulateWeight','iot.stopDevice','iot.bindRfid','iot.unbindRfid','iot.removeDevice',
-  'settings.backup','settings.restore','lots.remove'
+  'iot.saveDevice','iot.testDevice','iot.bindRfid','iot.startDevice','iot.simulateRfid','iot.simulateWeight',
+  'iot.stopDevice','iot.unbindRfid','iot.removeDevice',
+  'settings.backup','settings.restore'
 ];
 
-const contractedActions=()=>Object.entries(productContract.actions).flatMap(([screen,actions])=>actions.map(action=>`${screen}.${action}`)).sort();
-
-async function fixture(){
-  const dir=await mkdtemp(join(tmpdir(),'pecuaria-actions-'));
-  const db=await openProductPersistence({dbPath:join(dir,'db.sqlite'),productId:'agro-pecuaria'});
-  const security=createCattleSecurity({persistence:db});
-  await security.bootstrapAdmin({username:'admin',password:'P1-Product-Actions!'});
-  const presentation=createCattlePresentation({persistence:db,security});
-  const rpc=createCattleRpc({presentation,security,persistence:db});
-  const login=await rpc.login({username:'admin',password:'P1-Product-Actions!'});
-  return{dir,db,security,presentation,rpc,token:login.token,async close(){await db.close();await rm(dir,{recursive:true,force:true})}};
+async function authFor(host){
+  await host.backend.bootstrap({username:'qa-admin',password:'Qa-Standalone-2026!'});
+  const logged=await host.backend.login({username:'qa-admin',password:'Qa-Standalone-2026!'});
+  return{sessionId:logged.session.id,token:logged.token};
 }
 
 test('scenario registry exactly matches and executes all 61 contracted actions',async()=>{
-  const f=await fixture();
+  const root=await mkdtemp(join(tmpdir(),'pecuaria-actions-'));
+  let host;
   try{
-    const run=(screen,action,payload={})=>f.rpc.action({token:f.token,screen,action,payload});
-    let backupId=null;
+    host=await createStandaloneHost({dataDir:root});
+    const auth=await authFor(host);
+    const repos=createCattleRepositories(host.persistence);
+
+    await repos.lots.save(createCattleLot({id:'lot-main',name:'Principal',farmUnitId:'farm-1'}),{expectedVersion:0});
+    await repos.lots.save(createCattleLot({id:'lot-target',name:'Destino',farmUnitId:'farm-1'}),{expectedVersion:0});
+    await repos.lots.save(createCattleLot({id:'lot-remove',name:'Remover',farmUnitId:'farm-1'}),{expectedVersion:0});
+    const animals=[
+      ['animal-move','MOVE-QA'],['animal-life','LIFE-QA'],['animal-weight','WEIGHT-QA'],['animal-milk','MILK-QA'],
+      ['animal-sanitary','SAN-QA'],['animal-repro','REP-QA'],['animal-batch-move-1','BM-1'],['animal-batch-move-2','BM-2'],
+      ['animal-batch-life-1','BL-1'],['animal-batch-life-2','BL-2'],['animal-san-batch-1','SB-1'],['animal-san-batch-2','SB-2'],
+      ['animal-repro-batch-1','RB-1'],['animal-repro-batch-2','RB-2']
+    ];
+    for(const [id,tag] of animals)await repos.animals.save(createAnimal({id,tag,farmUnitId:'farm-1',lotId:'lot-main'}),{expectedVersion:0});
+
+    await host.presentation.services.iot.saveDevice({id:'iot-sim-scale',name:'Balança QA',profileId:'simulator-scale',stationId:'curral-qa',enabled:true,config:{}});
+    await host.presentation.services.iot.startDevice('iot-sim-scale');
+
+    let backupId=null,statementLineId=null;
+    const run=(screenId,action,input={})=>host.backend.action({screenId,action,input,auth});
+    const transferDocument={
+      format:'artisys-pecuaria-export',version:1,productId:'agro-pecuaria',collection:'cattle.parties',exportedAt:'2026-09-19T19:00:00.000Z',
+      records:[{id:'party-import',payload:{id:'party-import',name:'Importado QA',roles:['other'],document:null,phone:null,email:null,notes:null}}]
+    };
     const scenarios={
-      'data.saveFarmUnit':()=>run('data','saveFarmUnit',{id:'farm-main',name:'Fazenda Principal',registration:'QA',location:'Campo'}),
-      'data.saveBreed':()=>run('data','saveBreed',{id:'nelore',name:'Nelore',species:'bovine'}),
-      'data.saveCategory':()=>run('data','saveCategory',{id:'matriz',name:'Matriz',purpose:'breeding'}),
-      'data.saveParty':()=>run('data','saveParty',{id:'buyer-qa',name:'Comprador QA',roles:['buyer'],document:'00000000000'}),
-      'lots.save':()=>run('lots','save',{id:'lot-main',name:'Lote principal',farmUnitId:'farm-main',purpose:'beef'}),
-      'lots.remove':()=>run('lots','remove',{id:'lot-remove',expectedVersion:1}),
-      'animals.save':async()=>{
-        const existing=await f.db.getRecord('cattle.animals','animal-main');
-        if(existing)return run('animals','save',{...existing.payload,name:'Animal QA atualizado',expectedVersion:existing.version});
-        return run('animals','save',{id:'animal-main',tag:'A-001',name:'Animal QA',farmUnitId:'farm-main',lotId:'lot-main',breedId:'nelore',categoryId:'matriz',sex:'female',birthDate:'2024-01-01',status:'active'});
+      'lots.save':()=>run('lots','save',createCattleLot({id:'lot-action',name:'Ação',farmUnitId:'farm-1'})),
+      'lots.remove':async()=>{
+        const current=await repos.lots.get('lot-remove');
+        return run('lots','remove',{id:'lot-remove',expectedVersion:current.version});
       },
-      'animals.recordMilk':()=>run('animals','recordMilk',{id:'animal-dairy',measuredAt:'2026-09-19T09:00:00Z',liters:8.5}),
-      'animals.move':()=>run('animals','move',{id:'animal-main',toLotId:'lot-main',movedAt:'2026-09-19T10:00:00Z',reason:'qa'}),
-      'animals.batchMove':()=>run('animals','batchMove',{animalIds:['animal-main'],toLotId:'lot-main',movedAt:'2026-09-19T10:15:00Z',reason:'qa batch'}),
-      'animals.lifecycle':()=>run('animals','lifecycle',{id:'animal-main',type:'weaning',occurredAt:'2026-09-19T10:30:00Z',notes:'qa'}),
-      'animals.batchLifecycle':()=>run('animals','batchLifecycle',{animalIds:['animal-main'],type:'classification',occurredAt:'2026-09-19T10:45:00Z',notes:'qa batch'}),
-      'weights.record':()=>run('weights','record',{id:'animal-weight',weightKg:410,measuredAt:'2026-09-19T11:00:00Z',source:'manual'}),
-      'sanitary.saveProtocol':()=>run('sanitary','saveProtocol',{id:'protocol-qa',name:'Protocolo QA',productName:'Produto QA',dose:1,doseUnit:'mL',route:'subcutaneous',withdrawalDays:0,activeIngredient:'teste'}),
-      'sanitary.record':()=>run('sanitary','record',{id:'sanitary-qa',animalId:'animal-main',protocolId:'protocol-qa',occurredAt:'2026-09-19T11:30:00Z',dose:1}),
-      'sanitary.batchRecord':()=>run('sanitary','batchRecord',{idPrefix:'sanitary-batch',animalIds:['animal-main'],protocolId:'protocol-qa',occurredAt:'2026-09-19T11:45:00Z',dose:1}),
-      'reproduction.record':()=>run('reproduction','record',{id:'repro-qa',animalId:'animal-main',type:'insemination',occurredAt:'2026-09-19T12:00:00Z',notes:'qa'}),
-      'reproduction.batchRecord':()=>run('reproduction','batchRecord',{idPrefix:'repro-batch',animalIds:['animal-main'],type:'diagnosis',occurredAt:'2026-09-19T12:15:00Z',result:'open'}),
-      'trades.create':async()=>{
-        const saleAnimal=await f.db.getRecord('cattle.animals','animal-sale');
-        if(saleAnimal?.payload?.status==='active')return run('trades','create',{id:'trade-sale',type:'sale',occurredAt:'2026-09-19T13:00:00Z',animalIds:['animal-sale'],partyId:'buyer-qa',amountMinor:300000,lotId:'lot-main'});
-        return run('trades','create',{id:'trade-buy',type:'purchase',occurredAt:'2026-09-19T13:05:00Z',animalIds:[],partyId:'buyer-qa',amountMinor:150000});
+      'animals.save':()=>run('animals','save',createAnimal({id:'animal-action',tag:'ACTION-QA',farmUnitId:'farm-1',lotId:'lot-main',purpose:'dairy'})),
+      'animals.recordMilk':()=>run('animals','recordMilk',{id:'animal-action',liters:12.5,measuredAt:'2026-09-19T14:45:00Z'}),
+      'animals.move':()=>run('animals','move',{id:'animal-move',toLotId:'lot-target',movedAt:'2026-09-19T15:00:00Z',reason:'qa'}),
+      'animals.lifecycle':()=>run('animals','lifecycle',{id:'animal-life',type:'death',occurredAt:'2026-09-19T15:05:00Z',reason:'qa'}),
+      'animals.batchMove':()=>run('animals','batchMove',{animalIds:['animal-batch-move-1','animal-batch-move-2'],toLotId:'lot-target',movedAt:'2026-09-19T15:06:00Z',reason:'qa-batch'}),
+      'animals.batchLifecycle':()=>run('animals','batchLifecycle',{animalIds:['animal-batch-life-1','animal-batch-life-2'],type:'disposal',occurredAt:'2026-09-19T15:07:00Z',reason:'qa-batch'}),
+      'weights.record':()=>run('weights','record',{id:'animal-weight',weightKg:410,measuredAt:'2026-09-19T15:10:00Z'}),
+      'inventory.save':()=>run('inventory','save',{id:'feed-qa',name:'Ração QA',kind:'feed',unit:'kg',quantity:10000,minQuantity:100,batch:'F001',costMinor:250}),
+      'inventory.adjust':()=>run('inventory','adjust',{id:'feed-qa',delta:50,type:'in',occurredAt:'2026-09-19T15:11:00Z',reason:'qa',unitCostMinor:250}),
+      'sanitary.saveProtocol':()=>run('sanitary','saveProtocol',createSanitaryProtocol({id:'protocol-qa',name:'Vacina QA',productItemId:'product-1',dose:2,unit:'ml'})),
+      'sanitary.record':()=>run('sanitary','record',{id:'sanitary-qa',animalId:'animal-sanitary',protocolId:'protocol-qa',productItemId:'product-1',dose:2,unit:'ml',occurredAt:'2026-09-19T15:15:00Z'}),
+      'sanitary.batchRecord':()=>run('sanitary','batchRecord',{idPrefix:'san-batch',animalIds:['animal-san-batch-1','animal-san-batch-2'],protocolId:'protocol-qa',productItemId:'product-1',dose:2,unit:'ml',occurredAt:'2026-09-19T15:16:00Z'}),
+      'reproduction.record':()=>run('reproduction','record',{id:'repro-qa',animalId:'animal-repro',type:'service',occurredAt:'2026-09-19T15:20:00Z'}),
+      'reproduction.batchRecord':()=>run('reproduction','batchRecord',{idPrefix:'repro-batch',animalIds:['animal-repro-batch-1','animal-repro-batch-2'],type:'pregnancy-check',occurredAt:'2026-09-19T15:21:00Z',metadata:{result:'negative'}}),
+      'trades.create':()=>run('trades','create',{id:'trade-qa',type:'purchase',partyId:'supplier-1',animalIds:[],totalAmountMinor:100000,occurredAt:'2026-09-19T15:25:00Z'}),
+      'finance.addCost':()=>run('finance','addCost',{id:'cost-qa',lotId:'lot-main',amountMinor:25000,description:'Custo QA',category:'qa'}),
+      'finance.fromTrade':()=>run('finance','fromTrade',{tradeId:'trade-qa',id:'trade-finance-qa',lotId:'lot-main'}),
+      'finance.saveAccount':()=>run('finance','saveAccount',{id:'fin-account-qa',name:'Conta QA',kind:'bank'}),
+      'finance.saveCategory':()=>run('finance','saveCategory',{id:'fin-category-qa',name:'Custos QA',direction:'payable'}),
+      'finance.saveTitle':()=>run('finance','saveTitle',{id:'fin-title-qa',direction:'payable',description:'Título QA',originalAmountMinor:100000,issuedAt:'2026-09-19',dueAt:'2026-10-01',categoryId:'fin-category-qa',accountId:'fin-account-qa'}),
+      'finance.settleTitle':()=>run('finance','settleTitle',{id:'fin-settlement-qa',operationId:'fin-op-settle-qa',titleId:'fin-title-qa',amountMinor:30000,occurredAt:'2026-09-20T10:00:00Z',accountId:'fin-account-qa'}),
+      'finance.importStatement':async()=>{const result=await run('finance','importStatement',{sourceName:'qa.csv',text:'date;description;amount\n2026-09-20;Baixa QA;-300,00'});const lines=await host.persistence.listRecords('cattle.finance-reconciliations');statementLineId=lines[0]?.id;assert.ok(statementLineId);return result;},
+      'finance.reconcileStatement':()=>run('finance','reconcileStatement',{lineId:statementLineId,settlementId:'fin-settlement-qa'}),
+      'finance.reverseSettlement':()=>run('finance','reverseSettlement',{id:'fin-reversal-qa',operationId:'fin-op-reverse-qa',settlementId:'fin-settlement-qa',occurredAt:'2026-09-20T11:00:00Z',reason:'qa'}),
+      'finance.cancelTitle':async()=>{await run('finance','saveTitle',{id:'fin-title-cancel-qa',direction:'receivable',description:'Cancelar QA',originalAmountMinor:5000,issuedAt:'2026-09-19',dueAt:'2026-10-02'});return run('finance','cancelTitle',{id:'fin-title-cancel-qa',cancelledAt:'2026-09-20T12:00:00Z',reason:'qa'});},
+      'finance.importInvoiceXml':()=>run('finance','importInvoiceXml',{sourceName:'nfe-qa.xml',xml:'<NFe><infNFe><ide><nNF>77</nNF><dEmi>2026-09-20</dEmi></ide><emit><CNPJ>12345678000199</CNPJ><xNome>Fornecedor QA</xNome></emit><total><ICMSTot><vNF>123.45</vNF></ICMSTot></total></infNFe></NFe>'}),
+      'traceability.save':()=>run('traceability','save',{id:'trace-qa',animalId:'animal-weight',officialId:'BR-QA-001',type:'identity',documentNumber:'DOC-QA',issuer:'QA',issuedAt:'2026-09-19T15:30:00Z'}),
+      'traceability.remove':async()=>{
+        const current=await host.persistence.getRecord('cattle.traceability','trace-qa');
+        return run('traceability','remove',{id:'trace-qa',expectedVersion:current.version});
       },
-      'finance.addCost':()=>run('finance','addCost',{id:'cost-qa',occurredAt:'2026-09-19T13:30:00Z',amountMinor:12000,category:'feed',lotId:'lot-main',description:'Custo QA'}),
-      'finance.fromTrade':()=>run('finance','fromTrade',{id:'finance-trade-qa',tradeId:'trade-buy',lotId:'lot-main'}),
-      'finance.saveAccount':()=>run('finance','saveAccount',{id:'cash-qa',name:'Caixa QA',kind:'cash',openingBalanceMinor:100000}),
-      'finance.saveCategory':()=>run('finance','saveCategory',{id:'category-qa',name:'Operacional QA',direction:'both'}),
-      'finance.saveTitle':()=>run('finance','saveTitle',{id:'title-qa',direction:'payable',description:'Título QA',originalAmountMinor:20000,issuedAt:'2026-09-19T13:45:00Z',dueAt:'2026-09-25T13:45:00Z',accountId:'cash-qa',categoryId:'category-qa'}),
-      'finance.settleTitle':()=>run('finance','settleTitle',{titleId:'title-qa',amountMinor:5000,occurredAt:'2026-09-19T14:00:00Z',accountId:'cash-qa',operationId:'settlement-qa'}),
-      'finance.reverseSettlement':()=>run('finance','reverseSettlement',{settlementId:'settlement-qa',occurredAt:'2026-09-19T14:05:00Z',reason:'qa'}),
-      'finance.importStatement':()=>run('finance','importStatement',{sourceName:'qa.csv',content:'date;description;amount\n2026-09-19;Compra QA;-50,00'}),
-      'finance.reconcileStatement':async()=>{
-        const imported=(await f.db.listRecords('cattle.finance-statement')).find(record=>record.payload.description==='Compra QA');
-        return run('finance','reconcileStatement',{statementId:imported.payload.id,titleId:'title-qa',occurredAt:'2026-09-19T14:10:00Z'});
-      },
-      'finance.importInvoiceXml':()=>run('finance','importInvoiceXml',{sourceName:'qa.xml',content:'<NFe><infNFe><ide><nNF>123</nNF><dhEmi>2026-09-19T14:00:00Z</dhEmi></ide><emit><CNPJ>00000000000100</CNPJ><xNome>Fornecedor QA</xNome></emit><total><ICMSTot><vNF>100.00</vNF></ICMSTot></total></infNFe></NFe>'}),
-      'finance.cancelTitle':()=>run('finance','cancelTitle',{id:'title-cancel-qa',reason:'qa'}),
-      'traceability.save':()=>run('traceability','save',{id:'trace-qa',animalId:'animal-main',officialId:'BR-QA',type:'identity',issuedAt:'2026-09-19T14:30:00Z'}),
-      'traceability.remove':()=>run('traceability','remove',{id:'trace-remove',expectedVersion:1}),
-      'inventory.save':()=>run('inventory','save',{id:'feed-qa',name:'Ração QA',kind:'feed',unit:'kg',quantity:1000,minQuantity:100,costMinor:200}),
-      'inventory.adjust':()=>run('inventory','adjust',{id:'feed-qa',delta:50,occurredAt:'2026-09-19T15:00:00Z',reason:'qa'}),
-      'pastures.save':()=>run('pastures','save',{id:'pasture-qa',name:'Piquete QA',farmUnitId:'farm-main',areaHa:20,capacityAu:15,status:'available',forage:'Braquiária',restTargetDays:14,targetHeightCm:30}),
+      'pastures.save':()=>run('pastures','save',{id:'pasture-qa',name:'Piquete QA',farmUnitId:'farm-1',areaHa:12.5,capacityAu:20,status:'active',forage:'Brachiaria'}),
       'pastures.enterLot':()=>run('pastures','enterLot',{id:'occupancy-qa',pastureId:'pasture-qa',lotId:'lot-main',enteredAt:'2026-09-19T15:35:00Z',animalUnits:10,notes:'qa'}),
       'pastures.recordAssessment':()=>run('pastures','recordAssessment',{id:'assessment-qa',pastureId:'pasture-qa',occurredAt:'2026-09-19T16:00:00Z',score:4,heightCm:28,forageMassKgHa:3200,groundCoverPct:90}),
       'pastures.recordBodyCondition':()=>run('pastures','recordBodyCondition',{id:'body-qa',animalId:'animal-weight',occurredAt:'2026-09-19T16:05:00Z',score:3.5}),
       'pastures.saveRotationPlan':()=>run('pastures','saveRotationPlan',{id:'rotation-qa',pastureId:'pasture-qa',lotId:'lot-main',plannedEnterAt:'2026-09-25T08:00:00Z',plannedLeaveAt:'2026-09-28T08:00:00Z'}),
       'pastures.leaveLot':()=>run('pastures','leaveLot',{id:'occupancy-qa',leftAt:'2026-09-20T15:35:00Z'}),
-      'nutrition.save':()=>run('nutrition','save',{id:'nutrition-qa',name:'Plano QA',lotId:'lot-main',feedItemId:'feed-qa',dailyKgPerHead:2,startsAt:'2026-09-19T16:00:00Z'}),
-      'nutrition.consume':()=>run('nutrition','consume',{planId:'nutrition-qa',days:1,occurredAt:'2026-09-19T16:30:00Z'}),
-      'tasks.save':()=>run('tasks','save',{id:'task-qa',title:'Manejo QA',dueAt:'2026-09-22T10:00:00Z',kind:'management',lotId:'lot-main'}),
+      'nutrition.save':()=>run('nutrition','save',{id:'nutrition-qa',name:'Plano QA',lotId:'lot-main',feedItemId:'feed-qa',dailyKgPerHead:1.5,startsAt:'2026-09-19T00:00:00Z',notes:'qa'}),
+      'nutrition.consume':()=>run('nutrition','consume',{planId:'nutrition-qa',days:1,occurredAt:'2026-09-19T16:00:00Z'}),
+      'tasks.save':()=>run('tasks','save',{id:'task-qa',title:'Manejo QA',dueAt:'2026-09-21T10:00:00Z',kind:'management',animalId:'animal-weight',status:'pending'}),
       'tasks.complete':()=>run('tasks','complete',{id:'task-qa'}),
-      'reports.csv':()=>run('reports','csv',{type:'animals'}),
-      'reports.pdf':()=>run('reports','pdf',{type:'animals',title:'QA'}),
-      'reports.issue':()=>run('reports','issue',{id:'report-qa',type:'animals',format:'csv'}),
-      'data.exportCollection':()=>run('data','exportCollection',{collection:'cattle.animals'}),
-      'data.validateImport':async()=>{const exported=await run('data','exportCollection',{collection:'cattle.breeds'});return run('data','validateImport',{document:exported.document})},
-      'data.importCollection':async()=>{const exported=await run('data','exportCollection',{collection:'cattle.breeds'});const document={...exported.document,records:[{id:'breed-imported',payload:{id:'breed-imported',name:'Importada',species:'bovine'},version:1}]};return run('data','importCollection',{document})},
-      'iot.saveDevice':()=>run('iot','saveDevice',{id:'rfid-qa',name:'RFID QA',profile:'rfid',connector:'simulator',enabled:false,stationId:'curral-qa'}),
-      'iot.testDevice':()=>run('iot','testDevice',{id:'rfid-qa'}),
-      'iot.startDevice':()=>run('iot','startDevice',{id:'rfid-qa'}),
-      'iot.stopDevice':()=>run('iot','stopDevice',{id:'rfid-qa'}),
-      'iot.bindRfid':()=>run('iot','bindRfid',{tag:'EID-QA',animalId:'animal-main',stationId:'curral-qa'}),
-      'iot.unbindRfid':()=>run('iot','unbindRfid',{tag:'EID-QA',stationId:'curral-qa'}),
-      'iot.simulateRfid':()=>run('iot','simulateRfid',{deviceId:'rfid-qa',tag:'EID-QA'}),
-      'iot.simulateWeight':()=>run('iot','simulateWeight',{deviceId:'rfid-qa',weightKg:420,stable:true}),
-      'iot.removeDevice':()=>run('iot','removeDevice',{id:'rfid-qa'}),
-      'settings.backup':async()=>{const result=await run('settings','backup',{id:'actions-known-good'});backupId=result.id??'actions-known-good';return result},
+      'data.saveFarmUnit':()=>run('data','saveFarmUnit',{id:'farm-action',name:'Fazenda QA',registration:'REG-QA',location:'QA'}),
+      'data.saveBreed':()=>run('data','saveBreed',{id:'breed-qa',name:'Nelore QA',species:'bovine'}),
+      'data.saveCategory':()=>run('data','saveCategory',{id:'category-qa',name:'Recria QA',purpose:'beef'}),
+      'data.saveParty':()=>run('data','saveParty',{id:'party-qa',name:'Fornecedor QA',roles:['supplier'],document:'00.000.000/0001-00'}),
+      'data.exportCollection':async()=>{
+        const result=await run('data','exportCollection',{collection:'cattle.breeds'});
+        assert.equal(result.format,'artisys-pecuaria-export');
+        assert.ok(result.records.some(record=>record.id==='breed-qa'));
+        return result;
+      },
+      'data.validateImport':async()=>{
+        const result=await run('data','validateImport',{document:transferDocument});
+        assert.equal(result.valid,true);
+        assert.equal(result.imported,0);
+        return result;
+      },
+      'data.importCollection':async()=>{
+        const result=await run('data','importCollection',{document:transferDocument});
+        assert.equal(result.imported,1);
+        return result;
+      },
+      'reports.csv':async()=>{
+        const result=await run('reports','csv',{type:'lot-kpis',lotId:'lot-main'});
+        assert.equal(result.format,'csv');
+        assert.ok(result.rowCount>=1);
+        return result;
+      },
+      'reports.pdf':async()=>{
+        const result=await run('reports','pdf',{type:'lot-kpis',lotId:'lot-main'});
+        assert.equal(result.format,'pdf');
+        assert.ok(result.content);
+        return result;
+      },
+      'reports.issue':()=>run('reports','issue',{id:'document-qa',type:'lot-kpis',format:'csv',lotId:'lot-main'}),
+      'iot.saveDevice':()=>run('iot','saveDevice',{id:'iot-sim-rfid',name:'RFID QA',profileId:'simulator-rfid',stationId:'curral-qa',enabled:true,config:{}}),
+      'iot.testDevice':()=>run('iot','testDevice',{id:'iot-sim-rfid'}),
+      'iot.bindRfid':()=>run('iot','bindRfid',{tagId:'RFID-QA-001',animalId:'animal-weight'}),
+      'iot.startDevice':()=>run('iot','startDevice',{id:'iot-sim-rfid'}),
+      'iot.simulateRfid':async()=>{
+        const result=await run('iot','simulateRfid',{deviceId:'iot-sim-rfid',tagId:'RFID-QA-001'});
+        assert.equal(result.type,'animal-selected');
+        return result;
+      },
+      'iot.simulateWeight':async()=>{
+        const result=await run('iot','simulateWeight',{deviceId:'iot-sim-scale',value:420,unit:'kg',stable:true});
+        assert.equal(result.type,'weight-recorded');
+        assert.equal(result.animalId,'animal-weight');
+        return result;
+      },
+      'iot.stopDevice':()=>run('iot','stopDevice',{id:'iot-sim-rfid'}),
+      'iot.unbindRfid':()=>run('iot','unbindRfid',{tagId:'RFID-QA-001'}),
+      'iot.removeDevice':()=>run('iot','removeDevice',{id:'iot-sim-rfid'}),
+      'settings.backup':async()=>{
+        const result=await run('settings','backup',{id:'actions-known-good'});
+        backupId=result.id;
+        return result;
+      },
       'settings.restore':async()=>{
         assert.equal(backupId,'actions-known-good');
         return run('settings','restore',{id:backupId});
       }
     };
 
-    assert.deepEqual(Object.keys(scenarios).sort(),contractedActions());
-    assert.deepEqual([...executionOrder].sort(),contractedActions());
-    assert.equal(contractedActions().length,61);
+    assert.deepEqual(Object.keys(scenarios).sort(),expectedActions);
+    assert.deepEqual([...executionOrder].sort(),expectedActions);
+    assert.equal(expectedActions.length,61);
 
     const covered=[];
     for(const key of executionOrder){
@@ -130,45 +186,78 @@ test('scenario registry exactly matches and executes all 61 contracted actions',
       assert.notEqual(result,undefined,`${key} must return a result`);
       covered.push(key);
     }
-    assert.deepEqual(covered.slice().sort(),contractedActions());
-  }finally{await f.close()}
+    assert.deepEqual(covered,executionOrder);
+    assert.deepEqual([...covered].sort(),expectedActions);
+
+    const weighted=await repos.animals.get('animal-weight');
+    assert.equal(weighted.payload.weights.at(-1).weightKg,420);
+    const audit=await host.presentation.services.audit.list();
+    assert.ok(audit.some(entry=>entry.action==='settings.restore'));
+    assert.ok(audit.some(entry=>entry.action==='cattle.report.issue'));
+    assert.ok(audit.some(entry=>entry.action==='cattle.animal.move'));
+    assert.ok(audit.some(entry=>entry.action==='iot.weight.record'));
+    assert.ok(audit.some(entry=>entry.action==='iot.device.save'));
+  }finally{
+    await host?.close();
+    await rm(root,{recursive:true,force:true});
+  }
 });
 
 test('negative functional cases are rejected without silent corruption',async()=>{
-  const f=await fixture();
+  const root=await mkdtemp(join(tmpdir(),'pecuaria-negative-actions-'));
+  let host;
   try{
-    const run=(screen,action,payload={})=>f.rpc.action({token:f.token,screen,action,payload});
-    await run('data','saveFarmUnit',{id:'farm-main',name:'Fazenda Principal'});
-    await run('lots','save',{id:'lot-main',name:'Lote principal',farmUnitId:'farm-main',purpose:'beef'});
-    await assert.rejects(()=>run('animals','save',{id:'bad-animal',tag:'BAD',farmUnitId:'farm-main',lotId:'missing',sex:'female',status:'active'}),/Lot/i);
-    assert.equal(await f.db.getRecord('cattle.animals','bad-animal'),null);
-    await assert.rejects(()=>run('inventory','adjust',{id:'missing',delta:-1,occurredAt:'2026-09-19'}),/Inventory item/i);
-  }finally{await f.close()}
+    host=await createStandaloneHost({dataDir:root});
+    const auth=await authFor(host);
+    const repos=createCattleRepositories(host.persistence);
+    await repos.lots.save(createCattleLot({id:'lot-1',name:'Lote 1',farmUnitId:'farm-1'}),{expectedVersion:0});
+    await repos.animals.save(createAnimal({id:'animal-1',tag:'NEG-001',farmUnitId:'farm-1',lotId:'lot-1'}),{expectedVersion:0});
+    const run=(screenId,action,input={})=>host.backend.action({screenId,action,input,auth});
+
+    await assert.rejects(()=>run('animals','save',createAnimal({id:'animal-duplicate',tag:' neg-001 ',farmUnitId:'farm-1'})),/Animal tag already exists/i);
+    await assert.rejects(()=>run('animals','move',{id:'animal-1',toLotId:'missing',movedAt:'2026-09-19T16:00:00Z'}),/Lot not found/i);
+    await assert.rejects(()=>run('weights','record',{id:'animal-1',weightKg:0,measuredAt:'2026-09-19T16:00:00Z'}),/positive/i);
+    await run('weights','record',{id:'animal-1',weightKg:400,measuredAt:'2026-09-19T16:00:00Z'});
+    await assert.rejects(()=>run('weights','record',{id:'animal-1',weightKg:405,measuredAt:'2026-09-18T16:00:00Z'}),/chronological/i);
+    await assert.rejects(()=>run('sanitary','record',{id:'san-missing',animalId:'missing',protocolId:'missing',productItemId:'p',dose:1,unit:'ml',occurredAt:'2026-09-19T16:00:00Z'}),/Animal not found/i);
+
+    const current=await repos.lots.get('lot-1');
+    await assert.rejects(()=>repos.lots.save({...current.payload,name:'Conflict'},{expectedVersion:current.version+10}),/Version conflict/i);
+  }finally{
+    await host?.close();
+    await rm(root,{recursive:true,force:true});
+  }
 });
 
 test('manager cannot restore a backup even though manager can back up',async()=>{
-  const f=await fixture();
+  const dir=await mkdtemp(join(tmpdir(),'pecuaria-manager-restore-'));
+  const db=await openProductPersistence({dbPath:join(dir,'db.sqlite'),productId:'agro-pecuaria'});
   try{
-    const adminToken=f.token;
-    await f.rpc.userAdmin({token:adminToken,operation:'save',input:{id:'manager-qa',username:'managerqa',displayName:'Manager QA',role:'manager',password:'Manager-QA-2026!'}});
-    const manager=await f.rpc.login({username:'managerqa',password:'Manager-QA-2026!'});
-    const backup=await f.rpc.action({token:manager.token,screen:'settings',action:'backup',payload:{id:'manager-backup'}});
-    assert.equal(backup.id,'manager-backup');
-    await assert.rejects(()=>f.rpc.action({token:manager.token,screen:'settings',action:'restore',payload:{id:'manager-backup'}}),/permission|forbidden|admin/i);
-  }finally{await f.close()}
+    const security=createSecurityService(db);
+    await security.bootstrapUser({id:'manager-1',username:'manager',password:'password-123',roles:['manager']});
+    const auth=await security.authenticate({username:'manager',password:'password-123'});
+    await security.authorize({sessionId:auth.session.id,token:auth.token,permission:'settings:backup'});
+    await assert.rejects(
+      ()=>security.authorize({sessionId:auth.session.id,token:auth.token,permission:'settings:restore'}),
+      error=>error?.code==='FORBIDDEN'
+    );
+  }finally{
+    await db.close();
+    await rm(dir,{recursive:true,force:true});
+  }
 });
 
+
 test('P0 additive actions execute through authenticated presentation',async()=>{
-  const f=await fixture();
-  try{
-    const run=(screen,action,payload={})=>f.rpc.action({token:f.token,screen,action,payload});
-    await run('data','saveFarmUnit',{id:'farm-p0',name:'Fazenda P0'});
-    await run('lots','save',{id:'lot-p0',name:'Lote P0',farmUnitId:'farm-p0',purpose:'beef'});
-    await run('lots','save',{id:'lot-p0b',name:'Lote P0 B',farmUnitId:'farm-p0',purpose:'beef'});
-    await run('animals','save',{id:'animal-p0',tag:'P0-1',farmUnitId:'farm-p0',lotId:'lot-p0',sex:'female',status:'active'});
-    const moved=await run('animals','batchMove',{animalIds:['animal-p0'],toLotId:'lot-p0b',movedAt:'2026-09-19T19:00:00Z'});
-    assert.equal(moved[0].payload.lotId,'lot-p0b');
-    const life=await run('animals','batchLifecycle',{animalIds:['animal-p0'],type:'classification',occurredAt:'2026-09-19T19:05:00Z'});
-    assert.equal(life[0].payload.lifecycle.at(-1).type,'classification');
-  }finally{await f.close()}
+  const root=await mkdtemp(join(tmpdir(),'pecuaria-p0-additive-'));let host;
+  try{host=await createStandaloneHost({dataDir:root});const auth=await authFor(host);const repos=createCattleRepositories(host.persistence);
+    await repos.lots.save(createCattleLot({id:'p0-l1',name:'P0',farmUnitId:'p0-f1'}),{expectedVersion:0});
+    await repos.animals.save(createAnimal({id:'p0-a1',tag:'P0-A1',farmUnitId:'p0-f1',lotId:'p0-l1'}),{expectedVersion:0});
+    await repos.animals.save(createAnimal({id:'p0-a2',tag:'P0-A2',farmUnitId:'p0-f1',lotId:'p0-l1'}),{expectedVersion:0});
+    const run=(s,a,input)=>host.backend.action({screenId:s,action:a,input,auth});
+    await run('sanitary','batchRecord',{animalIds:['p0-a1','p0-a2'],idPrefix:'vac',productItemId:'vacina',dose:2,unit:'ml',occurredAt:'2026-09-19T20:00:00Z'});
+    await run('reproduction','batchRecord',{animalIds:['p0-a1','p0-a2'],idPrefix:'rep',type:'pregnancy-check',occurredAt:'2026-09-19T20:10:00Z'});
+    const events=await repos.events.list();assert.equal(events.length,4);
+    const detail=await host.backend.load({screenId:'animals',auth,context:{animalId:'p0-a1'}});assert.equal(detail.detail.animal.id,'p0-a1');assert.ok(detail.detail.timeline.length>=2);
+  }finally{await host?.close();await rm(root,{recursive:true,force:true});}
 });

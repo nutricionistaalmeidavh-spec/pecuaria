@@ -109,14 +109,15 @@ family('reports','gera CSV/PDF, baixa arquivos e persiste emissão',async({page}
 family('transfer','exporta, valida e importa JSON em outro banco local',async({browser})=>{
   const source=await browser.newContext({acceptDownloads:true});const sourcePage=await source.newPage();await login(sourcePage);await seedLot(sourcePage,{id:'lot-transfer',farmUnitId:''});
   const downloadPromise=sourcePage.waitForEvent('download');await runAction(sourcePage,'data','exportCollection',{collection:'cattle.lots'});const exported=await fileFromDownload(await downloadPromise);const document=exported.toString('utf8');expect(JSON.parse(document).records.length).toBe(1);
-  await runAction(sourcePage,'data','validateImport',{document});await expect(sourcePage.getByTestId('action-result')).toBeVisible();
-  const target=await browser.newContext();const targetPage=await target.newPage();await login(targetPage);await runAction(targetPage,'data','importCollection',{document});const imported=await expectRecord(targetPage,'cattle.lots','lot-transfer');expect(imported.payload.name).toContain('lot-transfer');
+  const target=await browser.newContext();const targetPage=await target.newPage();await login(targetPage);
+  await runAction(targetPage,'data','validateImport',{document});await expect(targetPage.getByTestId('action-result-panel')).toBeVisible();
+  await runAction(targetPage,'data','importCollection',{document});const imported=await expectRecord(targetPage,'cattle.lots','lot-transfer');expect(imported.payload.name).toContain('lot-transfer');
   await source.close();await target.close();
 });
 
 family('rbac','entra com perfil restrito e oculta telas e ações sem permissão',async({page})=>{
   await login(page);await navigate(page,'settings');const admin=page.getByTestId('user-administration');await expect(admin).toBeVisible();
-  const create=admin.getByRole('heading',{name:'Criar usuário'}).locator('..');await create.getByLabel('Usuário').fill('viewer-e2e');await create.getByLabel('Senha inicial').fill('Viewer-E2E-2026!');await create.getByLabel('Perfil').selectOption('viewer');await create.getByRole('button',{name:'Criar usuário'}).click();await expect(admin).toContainText('viewer-e2e');
+  await admin.getByRole('textbox',{name:'Usuário',exact:true}).fill('viewer-e2e');await admin.getByLabel('Senha inicial').fill('Viewer-E2E-2026!');await admin.getByRole('combobox',{name:'Perfil',exact:true}).selectOption('viewer');await admin.getByRole('button',{name:'Criar usuário'}).click();await expect(admin).toContainText('viewer-e2e');
   await logout(page);await page.getByTestId('username').fill('viewer-e2e');await page.getByTestId('password').fill('Viewer-E2E-2026!');await page.getByTestId('auth-submit').click();await expect(page.getByTestId('sidebar')).toBeVisible();
   await expect(page.getByTestId('nav-lots')).toBeVisible();await page.getByTestId('nav-lots').click();await expect(page.getByTestId('action-lots-save')).toHaveCount(0);await expect(page.getByTestId('action-lots-remove')).toHaveCount(0);
   await expect(page.getByTestId('nav-settings')).toHaveCount(0);await expect(page.getByTestId('nav-iot')).toHaveCount(0);await expect(page.getByTestId('nav-finance')).toHaveCount(0);
@@ -124,28 +125,38 @@ family('rbac','entra com perfil restrito e oculta telas e ações sem permissão
 
 family('iot','cadastra, testa, inicia, vincula, simula e para dispositivos locais',async({page})=>{
   await login(page);await seedFarm(page);await seedLot(page);await seedAnimal(page,{id:'cow-iot',tag:'COW-IOT'});
-  await runAction(page,'iot','saveDevice',{id:'rfid-sim',name:'RFID sim',profileId:'simulator-rfid',stationId:'curral-e2e',enabled:'false'});
-  await runAction(page,'iot','saveDevice',{id:'scale-sim',name:'Balança sim',profileId:'simulator-scale',stationId:'curral-e2e',enabled:'false'});
+  await runAction(page,'iot','saveDevice',{id:'rfid-sim',name:'RFID sim',profileId:'simulator-rfid',stationId:'curral-e2e',enabled:'true'});
+  await runAction(page,'iot','saveDevice',{id:'scale-sim',name:'Balança sim',profileId:'simulator-scale',stationId:'curral-e2e',enabled:'true'});
   await runAction(page,'iot','testDevice',{id:'rfid-sim'});await runAction(page,'iot','startDevice',{id:'rfid-sim'});await runAction(page,'iot','startDevice',{id:'scale-sim'});
   await runAction(page,'iot','bindRfid',{tagId:'RFID-E2E',animalId:'cow-iot'});await runAction(page,'iot','simulateRfid',{deviceId:'rfid-sim',tagId:'RFID-E2E'});await runAction(page,'iot','simulateWeight',{deviceId:'scale-sim',value:'432.1',unit:'kg',stable:'true'});
   await expect.poll(async()=>{const row=await openDbRecord(page,'cattle.animals','cow-iot');return row?.payload?.weights?.at(-1)?.weightKg}).toBe(432.1);
   await runAction(page,'iot','stopDevice',{id:'scale-sim'});await runAction(page,'iot','stopDevice',{id:'rfid-sim'});
 });
 
-family('fieldOffline','opera em campo, sincroniza pacote, persiste e detecta conflito',async({browser})=>{
-  const base=await browser.newContext({acceptDownloads:true});const basePage=await base.newPage();await login(basePage);await seedFarm(basePage);await seedLot(basePage);await seedAnimal(basePage,{id:'cow-field',tag:'COW-FIELD'});
-  await runAction(basePage,'tasks','save',{id:'task-apply',title:'Aplicar E2E',dueAt:'2026-09-21T12:00',kind:'management',animalId:'cow-field'});await runAction(basePage,'tasks','save',{id:'task-conflict',title:'Conflito E2E',dueAt:'2026-09-21T13:00',kind:'management',animalId:'cow-field'});
+family('fieldOffline','opera em campo, sincroniza pacote, persiste e detecta conflito real',async({browser})=>{
+  const base=await browser.newContext({acceptDownloads:true});const basePage=await base.newPage();await login(basePage);await seedFarm(basePage);await seedLot(basePage);await seedLot(basePage,{id:'lot-conflict'});await seedAnimal(basePage,{id:'cow-field',tag:'COW-FIELD'});
+  await runAction(basePage,'tasks','save',{id:'task-apply',title:'Aplicar E2E',dueAt:'2026-09-21T12:00',kind:'management',animalId:'cow-field'});
   await navigate(basePage,'tasks');const baseSwitcher=basePage.getByTestId('field-operation-switcher');await baseSwitcher.getByRole('button',{name:'Sincronizar',exact:true}).click();
   let downloadPromise=basePage.waitForEvent('download');await basePage.getByRole('button',{name:'Criar base local'}).click();const pairing=await fileFromDownload(await downloadPromise);
   downloadPromise=basePage.waitForEvent('download');await basePage.getByRole('button',{name:'Exportar pacote'}).click();const snapshotBundle=await fileFromDownload(await downloadPromise);
+
   const field=await browser.newContext({acceptDownloads:true});const fieldPage=await field.newPage();await login(fieldPage);await navigate(fieldPage,'tasks');const fieldSwitcher=fieldPage.getByTestId('field-operation-switcher');await fieldSwitcher.getByRole('button',{name:'Sincronizar',exact:true}).click();
-  let syncCard=fieldPage.getByTestId('field-secure-sync');await syncCard.locator('input[type=file]').setInputFiles({name:'pairing.json',mimeType:'application/json',buffer:pairing});
-  syncCard=fieldPage.getByTestId('field-secure-sync');await syncCard.locator('input[type=file]').setInputFiles({name:'snapshot.sync.json',mimeType:'application/json',buffer:snapshotBundle});
-  await fieldSwitcher.getByRole('button',{name:/Fila|Manejo/i}).first().click().catch(()=>{});const queue=fieldPage.getByTestId('field-task-queue');await expect(queue).toContainText('Aplicar E2E');await queue.locator('article').filter({hasText:'Aplicar E2E'}).getByRole('button',{name:'Concluir'}).click();await queue.locator('article').filter({hasText:'Conflito E2E'}).getByRole('button',{name:'Concluir'}).click();
-  await runAction(basePage,'tasks','complete',{id:'task-conflict'});
+  let syncCard=fieldPage.getByTestId('field-secure-sync');await syncCard.locator('input[type=file]').first().setInputFiles({name:'pairing.json',mimeType:'application/json',buffer:pairing});
+  syncCard=fieldPage.getByTestId('field-secure-sync');await syncCard.locator('input[type=file]').last().setInputFiles({name:'snapshot.sync.json',mimeType:'application/json',buffer:snapshotBundle});
+
+  await fieldSwitcher.getByRole('button',{name:'Tarefas',exact:true}).click();const queue=fieldPage.getByTestId('field-task-queue');await expect(queue).toContainText('Aplicar E2E');await queue.locator('article').filter({hasText:'Aplicar E2E'}).getByRole('button',{name:'Concluir'}).click();
+  await fieldSwitcher.getByRole('button',{name:'Mover',exact:true}).click();const move=fieldPage.getByTestId('field-quick-move');await move.getByLabel('Animal').selectOption('cow-field');await move.getByLabel('Destino').selectOption('lot-conflict');await move.getByRole('button',{name:'Mover animal'}).click();
+  expect((await openDbRecord(fieldPage,'cattle.animals','cow-field')).payload.lotId).toBe('lot-conflict');
+
+  await runAction(basePage,'lots','remove',{id:'lot-conflict',expectedVersion:'1'});
   await fieldSwitcher.getByRole('button',{name:'Sincronizar',exact:true}).click();downloadPromise=fieldPage.waitForEvent('download');await fieldPage.getByRole('button',{name:'Exportar pacote'}).click();const fieldBundle=await fileFromDownload(await downloadPromise);
-  await baseSwitcher.getByRole('button',{name:'Sincronizar',exact:true}).click();syncCard=basePage.getByTestId('field-secure-sync');await syncCard.locator('input[type=file]').setInputFiles({name:'field.sync.json',mimeType:'application/json',buffer:fieldBundle});
-  const applied=await expectRecord(basePage,'cattle.tasks','task-apply');expect(applied.payload.status).toBe('completed');await expect(syncCard).toContainText(/conflit/i);
+  await baseSwitcher.getByRole('button',{name:'Sincronizar',exact:true}).click();syncCard=basePage.getByTestId('field-secure-sync');await syncCard.locator('input[type=file]').last().setInputFiles({name:'field.sync.json',mimeType:'application/json',buffer:fieldBundle});
+
+  const applied=await expectRecord(basePage,'cattle.tasks','task-apply');expect(applied.payload.status).toBe('completed');expect((await openDbRecord(basePage,'cattle.animals','cow-field')).payload.lotId).toBe('lot-e2e');
+  const receipts=await listDbRecords(basePage,'cattle.field-sync-receipts');expect(receipts.some(row=>row.payload.status==='conflict'&&row.payload.kind==='animal.move')).toBe(true);
+
+  downloadPromise=basePage.waitForEvent('download');await basePage.getByRole('button',{name:'Exportar pacote'}).click();const receiptBundle=await fileFromDownload(await downloadPromise);
+  syncCard=fieldPage.getByTestId('field-secure-sync');await syncCard.locator('input[type=file]').last().setInputFiles({name:'receipts.sync.json',mimeType:'application/json',buffer:receiptBundle});await expect(syncCard).toContainText('1 conflito(s)');
   await base.close();await field.close();
 });
 

@@ -46,18 +46,33 @@ const envelopeMetadata=value=>({
 });
 const aad=value=>enc.encode(JSON.stringify(envelopeMetadata(value)));
 
-function normalizeQuick(kind,input={},operationId=crypto.randomUUID()){
-  if(kind==='task.complete')return Object.freeze({kind,screenId:'tasks',action:'complete',input:{id:required(input.id,'Task id')}});
-  if(kind==='weight.record'){
-    const weightKg=Number(input.weightKg);
-    if(!Number.isFinite(weightKg)||weightKg<=0)throw new TypeError('Weight must be positive.');
-    return Object.freeze({kind,screenId:'weights',action:'record',input:{id:required(input.id,'Animal id'),weightKg,measuredAt:iso(input.measuredAt??nowIso(),'Measured at')}});
-  }
-  if(kind==='animal.move')return Object.freeze({kind,screenId:'animals',action:'move',input:{id:required(input.id,'Animal id'),toLotId:required(input.toLotId,'Destination lot'),movedAt:iso(input.movedAt??nowIso(),'Moved at'),reason:input.reason?.trim?.()||'field-mobile'}});
-  if(kind==='sanitary.record')return Object.freeze({kind,screenId:'sanitary',action:'record',input:{id:input.eventId?.trim?.()||`field-san-${unique(operationId)}`,animalId:required(input.animalId,'Animal id'),protocolId:required(input.protocolId,'Protocol id'),occurredAt:iso(input.occurredAt??nowIso(),'Occurred at')}});
+export function normalizeFieldQuick(kind,input={},operationId=crypto.randomUUID()){
+  const op=unique(operationId);
+  const optional=value=>typeof value==='string'&&value.trim()?value.trim():null;
+  const number=(value,label,{positive=false}={})=>{const parsed=Number(value);if(!Number.isFinite(parsed)||(positive&&parsed<=0))throw new TypeError(`${label} must be ${positive?'positive':'a finite number'}.`);return parsed};
+  const ids=(value,label)=>{if(!Array.isArray(value)||value.length===0)throw new TypeError(`${label} requires at least one id.`);const normalized=value.map(item=>required(item,label));return Object.freeze([...new Set(normalized)])};
+  const command=(screenId,action,normalized)=>Object.freeze({kind,screenId,action,input:normalized});
+
+  if(kind==='task.complete')return command('tasks','complete',{id:required(input.id,'Task id')});
+  if(kind==='weight.record')return command('weights','record',{id:required(input.id,'Animal id'),weightKg:number(input.weightKg,'Weight',{positive:true}),measuredAt:iso(input.measuredAt??nowIso(),'Measured at')});
+  if(kind==='animal.move')return command('animals','move',{id:required(input.id,'Animal id'),toLotId:required(input.toLotId,'Destination lot'),movedAt:iso(input.movedAt??nowIso(),'Moved at'),reason:optional(input.reason)??'field-mobile'});
+  if(kind==='sanitary.record')return command('sanitary','record',{id:optional(input.eventId)??optional(input.id)??`field-san-${op}`,animalId:required(input.animalId,'Animal id'),protocolId:required(input.protocolId,'Protocol id'),productItemId:optional(input.productItemId),dose:input.dose==null?undefined:number(input.dose,'Dose',{positive:true}),unit:optional(input.unit),occurredAt:iso(input.occurredAt??nowIso(),'Occurred at'),nextDueAt:input.nextDueAt?iso(input.nextDueAt,'Next due at'):null,technicianPartyId:optional(input.technicianPartyId)});
+  if(kind==='reproduction.record')return command('reproduction','record',{id:optional(input.eventId)??optional(input.id)??`field-repro-${op}`,animalId:required(input.animalId,'Animal id'),type:required(input.type,'Reproduction type'),occurredAt:iso(input.occurredAt??nowIso(),'Occurred at'),relatedAnimalId:optional(input.relatedAnimalId),metadata:input.metadata&&typeof input.metadata==='object'?{...input.metadata}:{...(optional(input.notes)?{notes:optional(input.notes)}:{})}});
+  if(kind==='animal.birth')return command('animals','registerBirth',{id:required(input.id,'Animal id'),tag:required(input.tag,'Animal tag'),farmUnitId:required(input.farmUnitId,'Farm unit id'),birthDate:iso(input.birthDate??nowIso(),'Birth date'),sex:required(input.sex,'Sex'),damId:optional(input.damId),sireId:optional(input.sireId),lotId:optional(input.lotId),breedId:optional(input.breedId),categoryId:optional(input.categoryId),rfid:optional(input.rfid),name:optional(input.name),officialId:optional(input.officialId),purpose:optional(input.purpose)??'beef',notes:optional(input.notes),metadata:input.metadata&&typeof input.metadata==='object'?{...input.metadata}:{}});
+  if(kind==='animal.weaning')return command('reproduction','record',{id:optional(input.eventId)??optional(input.id)??`field-wean-${op}`,animalId:required(input.animalId,'Animal id'),type:'weaning',occurredAt:iso(input.occurredAt??nowIso(),'Occurred at'),relatedAnimalId:optional(input.relatedAnimalId),metadata:input.metadata&&typeof input.metadata==='object'?{...input.metadata}:{...(optional(input.notes)?{notes:optional(input.notes)}:{})}});
+  if(kind==='animal.death')return command('animals','lifecycle',{id:required(input.id??input.animalId,'Animal id'),type:'death',occurredAt:iso(input.occurredAt??nowIso(),'Occurred at'),reason:optional(input.reason)??'field-mobile'});
+  if(kind==='rfid.bind')return command('iot','bindRfid',{tagId:required(input.tagId??input.rfid,'RFID tag'),animalId:required(input.animalId,'Animal id'),...(optional(input.stationId)?{stationId:optional(input.stationId)}:{})});
+  if(kind==='traceability.save')return command('traceability','save',{id:optional(input.id)??`field-trace-${op}`,animalId:required(input.animalId,'Animal id'),officialId:optional(input.officialId),type:optional(input.type)??'identity',documentNumber:optional(input.documentNumber),issuer:optional(input.issuer),issuedAt:iso(input.issuedAt??nowIso(),'Issued at'),expiresAt:input.expiresAt?iso(input.expiresAt,'Expires at'):null,notes:optional(input.notes)});
+  if(kind==='animal.batchMove')return command('animals','batchMove',{animalIds:ids(input.animalIds,'Animal id'),toLotId:required(input.toLotId,'Destination lot'),movedAt:iso(input.movedAt??nowIso(),'Moved at'),reason:optional(input.reason)??'field-mobile'});
+  if(kind==='animal.batchLifecycle')return command('animals','batchLifecycle',{animalIds:ids(input.animalIds,'Animal id'),type:required(input.type,'Lifecycle type'),occurredAt:iso(input.occurredAt??nowIso(),'Occurred at'),reason:optional(input.reason)??'field-mobile'});
+  if(kind==='sanitary.batchRecord')return command('sanitary','batchRecord',{idPrefix:optional(input.idPrefix)??`field-san-batch-${op}`,animalIds:ids(input.animalIds,'Animal id'),protocolId:required(input.protocolId,'Protocol id'),productItemId:optional(input.productItemId),dose:input.dose==null?undefined:number(input.dose,'Dose',{positive:true}),unit:optional(input.unit),occurredAt:iso(input.occurredAt??nowIso(),'Occurred at'),nextDueAt:input.nextDueAt?iso(input.nextDueAt,'Next due at'):null,technicianPartyId:optional(input.technicianPartyId)});
+  if(kind==='reproduction.batchRecord')return command('reproduction','batchRecord',{idPrefix:optional(input.idPrefix)??`field-repro-batch-${op}`,animalIds:ids(input.animalIds,'Animal id'),type:required(input.type,'Reproduction type'),occurredAt:iso(input.occurredAt??nowIso(),'Occurred at'),relatedAnimalId:optional(input.relatedAnimalId),metadata:input.metadata&&typeof input.metadata==='object'?{...input.metadata}:{...(optional(input.notes)?{notes:optional(input.notes)}:{})}});
+  if(kind==='pasture.enterLot')return command('pastures','enterLot',{id:optional(input.id)??`field-pasture-${op}`,pastureId:required(input.pastureId,'Pasture id'),lotId:required(input.lotId,'Lot id'),enteredAt:iso(input.enteredAt??nowIso(),'Entered at'),animalUnits:input.animalUnits==null||input.animalUnits===''?null:number(input.animalUnits,'Animal units'),notes:optional(input.notes)});
+  if(kind==='pasture.leaveLot')return command('pastures','leaveLot',{id:required(input.id,'Pasture occupancy id'),leftAt:iso(input.leftAt??nowIso(),'Left at')});
+  if(kind==='animal.bodyScore')return command('pastures','recordBodyCondition',{id:optional(input.id)??`field-body-${op}`,animalId:required(input.animalId,'Animal id'),occurredAt:iso(input.occurredAt??nowIso(),'Occurred at'),score:number(input.score,'Body condition score'),scaleId:optional(input.scaleId)??'bcs',scaleMin:input.scaleMin==null?undefined:number(input.scaleMin,'Scale minimum'),scaleMax:input.scaleMax==null?undefined:number(input.scaleMax,'Scale maximum'),notes:optional(input.notes)});
+  if(kind==='pasture.score')return command('pastures','recordAssessment',{id:optional(input.id)??`field-pasture-score-${op}`,pastureId:required(input.pastureId,'Pasture id'),occurredAt:iso(input.occurredAt??nowIso(),'Occurred at'),score:number(input.score,'Pasture score'),scaleMin:input.scaleMin==null?undefined:number(input.scaleMin,'Scale minimum'),scaleMax:input.scaleMax==null?undefined:number(input.scaleMax,'Scale maximum'),heightCm:input.heightCm==null||input.heightCm===''?null:number(input.heightCm,'Height'),forageMassKgHa:input.forageMassKgHa==null||input.forageMassKgHa===''?null:number(input.forageMassKgHa,'Forage mass'),groundCoverPct:input.groundCoverPct==null||input.groundCoverPct===''?null:number(input.groundCoverPct,'Ground cover'),photoPaths:Array.isArray(input.photoPaths)?input.photoPaths.map(item=>required(item,'Photo path')):[],notes:optional(input.notes)});
   throw new Error(`Unsupported field quick operation: ${kind}`);
 }
-
 function touchesSnapshot(operation,collection,id){
   if(operation.kind==='task.complete')return collection==='cattle.tasks'&&operation.input?.id===id;
   if(operation.kind==='weight.record'||operation.kind==='animal.move')return collection==='cattle.animals'&&operation.input?.id===id;
@@ -110,7 +125,7 @@ export function createFieldSyncService(persistence,{productId=persistence?.produ
   async function prepareQuick({kind,input={},actorId='system'}={}){
     const config=(await requireConfig()).payload;
     const id=crypto.randomUUID();
-    const command=normalizeQuick(kind,input,id);
+    const command=normalizeFieldQuick(kind,input,id);
     const operation={id,sourceDeviceId:config.deviceId,kind:command.kind,input:command.input,createdAt:nowIso(),originActorId:actorId,status:config.role==='field'?'prepared':'local-only',localAppliedAt:null,lastExportedAt:null,error:null};
     if(config.role==='field')await persistence.putRecord(QUEUE,id,operation,{expectedVersion:0});
     return Object.freeze({operation,command,queued:config.role==='field'});
@@ -194,7 +209,7 @@ export function createFieldSyncService(persistence,{productId=persistence?.produ
       const started={id:receiptId,sourceDeviceId:operation.sourceDeviceId,operationId:operation.id,status:'started',receivedAt:nowIso(),kind:operation.kind,error:null};
       const startedRecord=await persistence.putRecord(RECEIPTS,receiptId,started,{expectedVersion:0});
       try{
-        const command=normalizeQuick(operation.kind,operation.input,operation.id);
+        const command=normalizeFieldQuick(operation.kind,operation.input,operation.id);
         if(typeof apply!=='function')throw new Error('Field operation applier is unavailable.');
         await apply(command);
         await persistence.putRecord(RECEIPTS,receiptId,{...started,status:'applied',appliedAt:nowIso()},{expectedVersion:startedRecord.version});

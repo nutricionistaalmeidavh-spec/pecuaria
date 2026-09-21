@@ -22,13 +22,13 @@
 5. Sanidade
 6. Reprodução
 7. Compras e Vendas
-8. Resultado por Lote / Financeiro
+8. Financeiro / Resultado por Lote
 9. Relatórios Zootécnicos
 10. Rastreabilidade
 11. Estoque e Insumos
 12. Pastagens e Áreas
 13. Nutrição
-14. Agenda de Manejo / Campo offline
+14. Manejo & Campo / modo offline
 15. Dados e Cadastros
 16. Dispositivos e IoT
 17. Configurações
@@ -211,4 +211,4 @@ Não apresentar a versão atual como:
 
 O **core obrigatório deve continuar R$ 0 de infraestrutura recorrente, local/self-hosted e baseado em componentes open source**. Serviços pagos, nuvem, APIs comerciais ou integrações externas podem existir apenas como opções explícitas e nunca como dependência silenciosa do funcionamento principal.
 
-**Estado:** P0 de profundidade, P1 de profundidade operacional, IoT P0/P1, reporting/dashboard, reprodução profissional, administração local, campo offline ampliado, updater e gates de engenharia estão integrados na branch de P1 e em fase de certificação final antes do merge em `main`.
+**Estado:** P0 de profundidade, P1 de profundidade operacional, IoT P0/P1, reporting/dashboard, reprodução profissional, administração local, campo offline ampliado, updater e gates de engenharia estão integrados ao `main` e certificados pela cadeia de QA do produto.

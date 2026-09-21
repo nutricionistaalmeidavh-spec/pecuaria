@@ -25,6 +25,20 @@ async function writeBackwardCompatibility(){
   await write(path,content);
 }
 
+async function enforceFieldDestinationPermissions(){
+  const path='runtime/backend.mjs';
+  let text=await read(path);
+  const quickOld="        const prepared=await fieldSynchronization.prepareQuick({...input,actorId:authorized.user.id});\n        try{";
+  const quickNew="        const prepared=await fieldSynchronization.prepareQuick({...input,actorId:authorized.user.id});\n        await session(auth,permission(prepared.command.screenId,'write',prepared.command.action));\n        try{";
+  if(text.includes(quickOld))text=replaceOnce(text,quickOld,quickNew,'field quick destination permission');
+
+  const importOld="        const result=await fieldSynchronization.importBundle(input.bundle,{apply:command=>presentation.action(command.screenId,command.action,command.input,{actorId:authorized.user.id,fieldSync:true})});";
+  const importNew="        const result=await fieldSynchronization.importBundle(input.bundle,{apply:async command=>{await session(auth,permission(command.screenId,'write',command.action));return presentation.action(command.screenId,command.action,command.input,{actorId:authorized.user.id,fieldSync:true});}});";
+  if(text.includes(importOld))text=replaceOnce(text,importOld,importNew,'field import destination permission');
+  await write(path,text);
+}
+
 await fixTask1Assertion();
 await writeBackwardCompatibility();
-console.log('[PASS] P1D Task 1 fix and Task 2 compatibility test applied');
+await enforceFieldDestinationPermissions();
+console.log('[PASS] P1D compatibility and destination RBAC patches applied');

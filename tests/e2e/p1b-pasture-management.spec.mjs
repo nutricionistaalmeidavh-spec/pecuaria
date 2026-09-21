@@ -11,7 +11,7 @@ test('pastures expose local operational map and measured management without clou
   await expect(page.getByTestId('pasture-condition')).toBeVisible();
   await expect(page.getByTestId('pasture-rotations')).toBeVisible();
   await expect(page.getByTestId('pasture-body-condition')).toBeVisible();
-  await expect(page.getByText('Pressão e ocupação')).toBeVisible();
+  await expect(page.getByText('Lotação e desempenho por área')).toBeVisible();
   await expect(page.locator('[data-testid="action-json"]')).toHaveCount(0);
 });
 

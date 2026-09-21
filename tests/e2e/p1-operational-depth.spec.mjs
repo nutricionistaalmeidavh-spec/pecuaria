@@ -79,6 +79,10 @@ test('pasture and animal operations coexist on the same local dataset',async({pa
   await submit(page);
   await expect(page.getByTestId('data-table')).toContainText('BIRTH-INT');
 
+  await openAction(page,'animals','recordBodyCondition');
+  for(const [name,value] of Object.entries({id:'body-int',animalId:'calf-int',occurredAt:'2026-09-21T08:00',score:'3.5'}))await fill(page,name,value);
+  await submit(page);
+
   await page.getByTestId('nav-tasks').click();
   const switcher=page.getByTestId('field-operation-switcher');
   await switcher.getByRole('button',{name:'Animal 360º',exact:true}).click();

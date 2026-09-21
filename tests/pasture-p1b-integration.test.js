@@ -16,17 +16,17 @@ async function fixture(){
   return{dir,db,presentation,async close(){await db.close();await rm(dir,{recursive:true,force:true})}};
 }
 
-test('pasture presentation exposes six operational actions through the transactional service',async()=>{
+test('pasture presentation exposes five pasture actions and canonical animal body condition',async()=>{
   const f=await fixture();
   try{
     const actions=Object.keys(f.presentation.screen('pastures').actions);
-    assert.deepEqual(actions,['save','enterLot','leaveLot','recordAssessment','recordBodyCondition','saveRotationPlan']);
+    assert.deepEqual(actions,['save','enterLot','leaveLot','recordAssessment','saveRotationPlan']);
     await f.presentation.action('pastures','save',{id:'p1',name:'Piquete 1',farmUnitId:'farm-1',areaHa:10,restTargetDays:12,targetHeightCm:30});
     await f.presentation.action('pastures','save',{id:'p2',name:'Piquete 2',farmUnitId:'farm-1',areaHa:8});
     await f.presentation.action('pastures','enterLot',{id:'occ-1',pastureId:'p1',lotId:'lot-1',enteredAt:'2026-09-20T08:00:00Z',animalUnits:5});
     await assert.rejects(()=>f.presentation.action('pastures','enterLot',{id:'occ-2',pastureId:'p2',lotId:'lot-1',enteredAt:'2026-09-20T09:00:00Z',animalUnits:5}),/already|active|occup/i);
     await f.presentation.action('pastures','recordAssessment',{id:'assessment-1',pastureId:'p1',occurredAt:'2026-09-20T10:00:00Z',score:4,heightCm:28,forageMassKgHa:3200,groundCoverPct:92});
-    await f.presentation.action('pastures','recordBodyCondition',{id:'body-1',animalId:'animal-1',occurredAt:'2026-09-20T10:15:00Z',score:3.5});
+    await f.presentation.action('animals','recordBodyCondition',{id:'body-1',animalId:'animal-1',occurredAt:'2026-09-20T10:15:00Z',score:3.5});
     await f.presentation.action('pastures','saveRotationPlan',{id:'rotation-1',pastureId:'p2',lotId:'lot-1',plannedEnterAt:'2026-09-25T08:00:00Z',plannedLeaveAt:'2026-09-28T08:00:00Z'});
     const loaded=await f.presentation.load('pastures',{});
     assert.equal(loaded.management.pastures.find(item=>item.id==='p1').latestAssessment.score,4);

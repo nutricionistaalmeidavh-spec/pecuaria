@@ -22,7 +22,7 @@ const cases=[
   ['reproduction.batchRecord',{animalIds:['animal-1','animal-2'],type:'pregnancy-check',occurredAt:at},'reproduction','batchRecord'],
   ['pasture.enterLot',{pastureId:'pasture-1',lotId:'lot-1',enteredAt:at,animalUnits:10},'pastures','enterLot'],
   ['pasture.leaveLot',{id:'occupancy-1',leftAt:at},'pastures','leaveLot'],
-  ['animal.bodyScore',{animalId:'animal-1',occurredAt:at,score:3.5},'pastures','recordBodyCondition'],
+  ['animal.bodyScore',{animalId:'animal-1',occurredAt:at,score:3.5},'animals','recordBodyCondition'],
   ['pasture.score',{pastureId:'pasture-1',occurredAt:at,score:4},'pastures','recordAssessment']
 ];
 

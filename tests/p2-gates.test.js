@@ -1,6 +1,7 @@
+import {readFile} from 'node:fs/promises';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {canonicalJson,contractDigest,validateContractSnapshot} from '../tooling/api-contract-gate.mjs';
+import {canonicalJson,contractDigest,projectProductContract,validateContractSnapshot} from '../tooling/api-contract-gate.mjs';
 import {evaluateSecurity,npmAuditInvocation} from '../tooling/security-gate.mjs';
 import {evaluateProductQa} from '../tooling/product-qa-gate.mjs';
 import {validateReleaseEvidence} from '../tooling/release-validator-gate.mjs';
@@ -16,6 +17,21 @@ test('API contract digest ignores object key order but detects real contract dri
   assert.equal(validateContractSnapshot({declared:a,current:b,baseline}),true);
   assert.throws(()=>validateContractSnapshot({declared:a,current:{...b,screens:['overview']},baseline}),/drift/i);
   assert.throws(()=>validateContractSnapshot({declared:a,current:b,baseline:{schemaVersion:1,sha256:'bad'}}),/baseline/i);
+});
+
+test('final P1 contract projection is frozen at 17/62/17',async()=>{
+  const [product,declared,baseline]=await Promise.all([
+    readFile(new URL('../qa/product-contract.json',import.meta.url),'utf8').then(JSON.parse),
+    readFile(new URL('../qa/api-contract.json',import.meta.url),'utf8').then(JSON.parse),
+    readFile(new URL('../qa/api-contract.baseline.json',import.meta.url),'utf8').then(JSON.parse)
+  ]);
+  const current=projectProductContract(product);
+  assert.equal(current.screens.length,17);
+  assert.equal(Object.values(current.actions).flat().length,62);
+  assert.equal(current.rpcMethods.length,17);
+  assert.deepEqual(declared,current);
+  assert.equal(contractDigest(current),baseline.sha256);
+  assert.equal(validateContractSnapshot({declared,current,baseline}),true);
 });
 
 test('security gate uses cmd.exe for npm audit on Windows instead of spawning npm.cmd directly',()=>{

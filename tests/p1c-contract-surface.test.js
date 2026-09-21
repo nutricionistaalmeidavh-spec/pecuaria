@@ -14,7 +14,9 @@ test('P1C final public surface is exactly 17 screens, 62 actions and 17 RPCs',()
   assert.deepEqual(api.screens,product.screens);
   assert.deepEqual(api.actions,product.actions);
   assert.deepEqual(api.rpcMethods,product.rpcMethods);
-  assert.deepEqual(product.actions.animals,['save','registerBirth','recordMilk','move','lifecycle','batchMove','batchLifecycle']);
+  assert.deepEqual(product.actions.animals,['save','recordMilk','move','lifecycle','batchMove','batchLifecycle','recordBodyCondition','registerBirth']);
+  assert.deepEqual(product.actions.pastures,['save','enterLot','leaveLot','recordAssessment','saveRotationPlan']);
+  assert.equal(actionFormKeys().includes('animals.recordBodyCondition'),true);
   assert.equal(actionFormKeys().includes('animals.registerBirth'),true);
 });
 

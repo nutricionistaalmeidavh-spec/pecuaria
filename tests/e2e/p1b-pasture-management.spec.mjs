@@ -17,7 +17,7 @@ test('pastures expose local operational map and measured management without clou
 
 test('all P1B pasture actions are typed in the existing authenticated workspace',async({page})=>{
   await login(page);await page.getByTestId('nav-pastures').click();
-  const actions=['save','enterLot','leaveLot','recordAssessment','recordBodyCondition','saveRotationPlan'];
+  const actions=['save','enterLot','leaveLot','recordAssessment','saveRotationPlan'];
   for(const action of actions){
     const button=page.getByTestId(`action-pastures-${action}`);await expect(button).toBeVisible();await button.click();await expect(page.getByRole('dialog')).toBeVisible();await expect(page.locator('[data-testid="action-json"]')).toHaveCount(0);await page.getByRole('button',{name:'Fechar'}).click();
   }

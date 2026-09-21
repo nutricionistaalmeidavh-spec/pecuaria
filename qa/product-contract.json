@@ -39,12 +39,13 @@
     ],
     "animals": [
       "save",
-      "registerBirth",
       "recordMilk",
       "move",
       "lifecycle",
       "batchMove",
-      "batchLifecycle"
+      "batchLifecycle",
+      "recordBodyCondition",
+      "registerBirth"
     ],
     "weights": [
       "record"
@@ -92,7 +93,6 @@
       "enterLot",
       "leaveLot",
       "recordAssessment",
-      "recordBodyCondition",
       "saveRotationPlan"
     ],
     "nutrition": [

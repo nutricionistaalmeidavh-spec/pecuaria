@@ -47,6 +47,14 @@ test('main automatically publishes a stable version once and verifies the public
   assert.match(workflow,/if \(-not \$ok -and \$attempt -lt 15\) \{ Start-Sleep -Seconds 2 \}/);
 });
 
+test('release publishes a stable latest installer alias for a permanent public download URL',async()=>{
+  const workflow=await read('.github/workflows/release.yml');
+  assert.match(workflow,/ArtiSys-Pecuaria-Setup-latest\.exe/);
+  assert.match(workflow,/gh release upload/);
+  assert.match(workflow,/--clobber/);
+  assert.match(workflow,/releases\/latest\/download\/ArtiSys-Pecuaria-Setup-latest\.exe/);
+});
+
 test('release run evidence can be produced natively without Woodpecker or a customer database',async()=>{
   const source=await read('tooling/release-run.mjs');
   assert.match(source,/github-actions/);

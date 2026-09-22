@@ -74,6 +74,7 @@ html[data-density="compact"] [data-testid="corral-flow"]{padding-top:12px;paddin
   .p2-telemetry-summary{grid-template-columns:1fr}
   .p2-favorite-options{grid-template-columns:1fr 1fr}
   .p2-field-favorite-editor{left:auto;right:0;grid-template-columns:1fr;width:min(290px,86vw)}
+  .p2-field-favorites-row>button{min-height:var(--p2-touch-target)}
   .domain-table .table-row-action button{width:100%}
 }
 

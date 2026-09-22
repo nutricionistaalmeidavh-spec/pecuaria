@@ -18,7 +18,7 @@ test('pastures preserves schematic fallback and exposes geographic map, editor a
   await expect(page.getByText('Somente no desktop Windows').first()).toBeVisible();
   await page.getByTestId('open-map-editor').click();
   await expect(page.getByTestId('cattle-map-editor')).toBeVisible();
-  await expect(page.getByText('GeoJSON')).toBeVisible();
+  await expect(page.getByLabel('GeoJSON')).toBeVisible();
   await expect(page.locator('[data-testid="action-json"]')).toHaveCount(0);
   await page.screenshot({path:testInfo.outputPath('pastures-geographic-map.png'),fullPage:true});
   await page.getByTestId('map-mode-schematic').click();

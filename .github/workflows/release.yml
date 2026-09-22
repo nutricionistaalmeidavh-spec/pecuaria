@@ -96,6 +96,19 @@ jobs:
           Write-Host "Installer: $($installer.Name)"
           Write-Host "SHA256: $((Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant())"
 
+      - name: Prepare permanent installer alias
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $source = "release/ArtiSys-Pecuaria-Setup-$version.exe"
+          $alias = 'release/ArtiSys-Pecuaria-Setup-latest.exe'
+          if (-not (Test-Path $source)) { throw "Versioned installer missing: $source" }
+          Copy-Item $source $alias -Force
+          $sourceHash = (Get-FileHash $source -Algorithm SHA256).Hash.ToLowerInvariant()
+          $aliasHash = (Get-FileHash $alias -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sourceHash -ne $aliasHash) { throw 'Permanent installer alias does not match versioned installer.' }
+          Write-Host "Permanent alias prepared: $alias | SHA256=$aliasHash"
+
       - name: Validate tag matches package version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
@@ -161,6 +174,18 @@ jobs:
             qa-artifacts/release-certification.json
             qa-artifacts/release-validation.json
 
+      - name: Ensure permanent latest installer alias
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ steps.publication.outputs.tag_name }}"
+          $alias = 'release/ArtiSys-Pecuaria-Setup-latest.exe'
+          if (-not (Test-Path $alias)) { throw 'Permanent installer alias is missing.' }
+          gh release upload $tag $alias --clobber --repo "${{ github.repository }}"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload permanent installer alias to $tag" }
+
       - name: Verify published updater feed
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
@@ -185,3 +210,27 @@ jobs:
           }
           if (-not $ok) { throw "Published updater feed is invalid or not propagated: $url" }
           Write-Host "Updater feed verified: $url"
+
+      - name: Verify permanent installer link
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $url = 'https://github.com/${{ github.repository }}/releases/latest/download/ArtiSys-Pecuaria-Setup-latest.exe'
+          $tmp = Join-Path $env:RUNNER_TEMP 'ArtiSys-Pecuaria-Setup-latest.exe'
+          $expected = (Get-FileHash 'release/ArtiSys-Pecuaria-Setup-latest.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          $ok = $false
+          for ($attempt = 1; $attempt -le 15; $attempt++) {
+            Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+            & curl.exe --fail --location --silent --show-error --output $tmp $url
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $tmp)) {
+              $actual = (Get-FileHash $tmp -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actual -eq $expected) {
+                $ok = $true
+                break
+              }
+            }
+            $global:LASTEXITCODE = 0
+            if (-not $ok -and $attempt -lt 15) { Start-Sleep -Seconds 2 }
+          }
+          if (-not $ok) { throw "Permanent installer link is invalid or not propagated: $url" }
+          Write-Host "Permanent installer link verified: $url"

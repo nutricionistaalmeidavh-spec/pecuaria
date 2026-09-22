@@ -57,8 +57,11 @@ export async function runAction(page,screen,action,values={},options={}){
     await expect(page.getByRole('alert')).toContainText(options.expectError);
     return;
   }
-  await expect(dialog).toBeHidden();
-  await expect(page.getByRole('status').filter({hasText:'Operação concluída com sucesso.'})).toBeVisible();
+  // Windows GitHub runners can be materially slower for local persistence-heavy
+  // journeys under parallel Playwright load. Keep these assertions fail-closed,
+  // while allowing a completed local mutation enough time to settle.
+  await expect(dialog).toBeHidden({timeout:15000});
+  await expect(page.getByRole('status').filter({hasText:'Operação concluída com sucesso.'})).toBeVisible({timeout:15000});
 }
 
 export async function openDbRecord(page,collection,id,{includeDeleted=true}={}){

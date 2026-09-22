@@ -29,8 +29,8 @@ test('certified Windows release serializes browser E2E to avoid IndexedDB conten
   const workflow=await read('.github/workflows/release.yml');
   const config=await read('playwright.config.mjs');
   assert.match(workflow,/Browser E2E[\s\S]*PLAYWRIGHT_WORKERS:\s*'1'/);
-  assert.match(config,/PLAYWRIGHT_WORKERS/);
-  assert.match(config,/workers:/);
+  assert.match(config,/process\.env\.PLAYWRIGHT_WORKERS/);
+  assert.match(config,/\bworkers,?/);
 });
 
 test('main automatically publishes a stable version once and verifies the public updater feed',async()=>{

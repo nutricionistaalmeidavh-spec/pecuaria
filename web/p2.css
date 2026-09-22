@@ -68,9 +68,11 @@ html[data-density="compact"] [data-testid="corral-flow"]{padding-top:12px;paddin
 
 @media(max-width:760px){
   :root{--p2-control-height:44px;--p2-cell-y:10px;--p2-cell-x:10px}
+  html[data-density="compact"]{--p2-control-height:44px}
   :where(button,input,select,textarea,summary){min-height:var(--p2-touch-target)}
   .p2-preferences-heading,.p2-section-heading,.p2-field-favorites{align-items:stretch;flex-direction:column}
   .p2-density-control{width:100%}
+  .p2-density-control.compact select{min-height:var(--p2-touch-target)}
   .p2-telemetry-summary{grid-template-columns:1fr}
   .p2-favorite-options{grid-template-columns:1fr 1fr}
   .p2-field-favorite-editor{left:auto;right:0;grid-template-columns:1fr;width:min(290px,86vw)}

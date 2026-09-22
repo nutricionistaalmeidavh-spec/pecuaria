@@ -14,6 +14,7 @@ on:
       - p1-operational-depth
       - ui-operational-polish
       - ux-p0-sales-readiness
+      - ux-p1-daily-efficiency
       - main
   workflow_dispatch:
 

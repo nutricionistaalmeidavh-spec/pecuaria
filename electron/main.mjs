@@ -5,6 +5,7 @@ import {createStandaloneHost} from '../runtime/host.mjs';
 import {createUpdateController} from './updater.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
+if(process.env.ARTISYS_E2E_USER_DATA)app.setPath('userData',process.env.ARTISYS_E2E_USER_DATA);
 let host;
 let win;
 let updates;
@@ -17,7 +18,7 @@ app.whenReady().then(async()=>{
   await win.loadFile(join(here,'../dist/index.html'));
   win.once('ready-to-show',()=>{
     win.show();
-    setTimeout(()=>void updates.check(),4000);
+    if(process.env.ARTISYS_DISABLE_UPDATES!=='1')setTimeout(()=>void updates.check(),4000);
   });
 });
 

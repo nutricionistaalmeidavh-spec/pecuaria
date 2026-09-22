@@ -41,6 +41,6 @@ test('map catalog pins asset URLs to the manifest release tag',async()=>{
   assert.equal(plan.sources.length,1);
   assert.equal(plan.sources[0].url,'https://github.com/nutricionistaalmeidavh-spec/mapasbrasilrelease/releases/download/br-maps-v2026.09.0/sp.pmtiles');
   assert.equal((await catalog.snapshot()).repository,MAP_RELEASE_REPOSITORY);
-  const cached=JSON.parse(await readFile(join(dataDir,'maps','maps-manifest.json'),'utf8'));
+  const cached=JSON.parse(await readFile(join(dataDir,'maps','catalog.json'),'utf8'));
   assert.equal(cached.releaseVersion,'2026.09.0');
 });

@@ -1,4 +1,8 @@
-import React from 'react';
+import React,{useEffect,useState} from 'react';
+import {CattleMap} from './maps/cattle-map.jsx';
+import {CattleOfflineMaps} from './maps/offline-maps.jsx';
+import {CattleMapEditor} from './maps/map-editor.jsx';
+import './maps/maps.css';
 
 const statusLabel={available:'Disponível',occupied:'Ocupado',resting:'Descanso',unavailable:'Indisponível'};
 const fmt=value=>value==null?'Sem dados':String(value);
@@ -11,9 +15,33 @@ function PastureMap({pastures=[]}){
 
 export function PastureManagementWorkspace({data}){
   const management=data??{},pastures=management.pastures??[],rotationPlans=management.rotationPlans??[],bodyCondition=management.bodyCondition??[],occupancy=management.occupancy??[];
+  const [mapMode,setMapMode]=useState('schematic');
+  const [mapState,setMapState]=useState(null);
+  const [mapError,setMapError]=useState(null);
+  const [editorOpen,setEditorOpen]=useState(false);
+  const mapsApi=globalThis.artisys?.maps;
+  const reloadMap=async()=>{
+    if(typeof mapsApi!=='function'){setMapError('O runtime de mapas não está disponível.');return null;}
+    try{const state=await mapsApi({operation:'state'});setMapState(state);setMapError(null);return state}catch(error){setMapError(error?.message??'Não foi possível carregar o mapa geográfico.');return null;}
+  };
+  useEffect(()=>{void reloadMap()},[data]);
+  const runMap=async(operation,input={})=>{
+    if(typeof mapsApi!=='function')throw new Error('Runtime de mapas indisponível.');
+    const result=await mapsApi({operation,input});
+    await reloadMap();
+    return result;
+  };
   return <div className="pasture-management" data-testid="pasture-management">
     <section className="panel" data-testid="pasture-status-cards"><div className="panel-heading"><div><span className="eyebrow">Estado operacional</span><h2>Pastagens</h2><p>Capacidade, ocupação e descanso derivados do histórico local.</p></div></div><div className="data-cards">{pastures.map(pasture=><article className="data-card" key={pasture.id}><strong>{pasture.name??pasture.id}</strong><span>Status: {statusLabel[pasture.operationalStatus]??pasture.operationalStatus}</span><span>Área: {fmt(pasture.areaHa)} ha</span><span>Capacidade: {pasture.capacityAu==null?'Sem dados':`${pasture.capacityAu} UA`}</span><span>Descanso: {pasture.restDays==null?'Sem dados':`${pasture.restDays} dia(s)`}</span></article>)}</div></section>
-    <PastureMap pastures={pastures}/>
+    <section className="panel" data-testid="pasture-map-mode"><div className="panel-heading"><div><span className="eyebrow">Visão espacial</span><h2>Mapa e ocupação</h2><p>Alterne entre a visão geográfica WGS84 e o desenho esquemático local já existente.</p></div><div className="pasture-map-mode"><button type="button" data-testid="map-mode-geographic" aria-pressed={mapMode==='geographic'} onClick={()=>setMapMode('geographic')}>Mapa geográfico</button><button type="button" data-testid="map-mode-schematic" aria-pressed={mapMode==='schematic'} onClick={()=>setMapMode('schematic')}>Esquemático</button></div></div></section>
+    {mapMode==='schematic'?<PastureMap pastures={pastures}/>:<>
+      {mapError&&<div className="map-message error" data-testid="map-error">{mapError}</div>}
+      {!mapState&&!mapError?<section className="panel" data-testid="cattle-map-loading">Carregando mapa geográfico…</section>:null}
+      {mapState&&<CattleMap map={mapState.map} onAddPoint={()=>setEditorOpen(true)} onEditPasture={()=>setEditorOpen(true)}/>} 
+      {mapState&&<div className="actions"><button type="button" data-testid="open-map-editor" onClick={()=>setEditorOpen(value=>!value)}>{editorOpen?'Fechar editor':'Mapear piquete / infraestrutura'}</button></div>}
+      {mapState&&editorOpen&&<CattleMapEditor map={mapState.map} onRun={runMap} onReload={reloadMap} onClose={()=>setEditorOpen(false)}/>} 
+      {mapState&&<CattleOfflineMaps data={mapState} onRun={runMap} reload={reloadMap}/>} 
+    </>}
     <section className="panel" data-testid="pasture-assessments"><div className="panel-heading"><div><span className="eyebrow">Medição de campo</span><h2>Avaliações de pastagem</h2><p>Altura, massa, cobertura e escore vêm de observações registradas; valores ausentes aparecem como Sem dados.</p></div></div><div data-testid="pasture-condition">{pastures.length?<div className="data-cards">{pastures.map(pasture=>{const latestAssessment=pasture.latestAssessment;return <article className="data-card" key={pasture.id}><strong>{pasture.name??pasture.id}</strong><span>Escore: {fmt(latestAssessment?.score)}</span><span>Altura: {latestAssessment?.heightCm==null?'Sem dados':`${latestAssessment.heightCm} cm`}</span><span>Massa: {latestAssessment?.forageMassKgHa==null?'Sem dados':`${latestAssessment.forageMassKgHa} kg/ha`}</span><span>Cobertura: {latestAssessment?.groundCoverPct==null?'Sem dados':`${latestAssessment.groundCoverPct}%`}</span></article>})}</div>:<p className="muted">Sem dados de avaliações de pastagem.</p>}</div></section>
     <section className="panel" data-testid="pasture-rotation-plan"><div className="panel-heading"><div><span className="eyebrow">Planejamento local</span><h2>Rotação planejada</h2><p>{rotationPlans.length} plano(s) local(is).</p></div></div><div data-testid="pasture-rotations">{rotationPlans.length?<div className="data-cards">{rotationPlans.map(plan=><article className="data-card" key={plan.id}><strong>{plan.id}</strong><span>Pasto: {plan.pastureId}</span><span>Lote: {plan.lotId}</span><span>Entrada: {plan.plannedEnterAt}</span><span>Saída: {plan.plannedLeaveAt??'Sem dados'}</span><span>Status: {plan.status}</span></article>)}</div>:<p className="muted">Nenhuma rotação planejada.</p>}</div></section>
     <section className="panel" data-testid="pasture-plan-vs-actual"><div className="panel-heading"><div><span className="eyebrow">Planejado x realizado</span><h2>Execução da rotação</h2><p>O plano permanece separado do histórico real de ocupação.</p></div></div>{rotationPlans.length?<div className="data-cards">{rotationPlans.map(plan=>{const actual=occupancy.filter(item=>item.pastureId===plan.pastureId&&item.lotId===plan.lotId).slice().sort((a,b)=>Math.abs(Date.parse(a.enteredAt)-Date.parse(plan.plannedEnterAt))-Math.abs(Date.parse(b.enteredAt)-Date.parse(plan.plannedEnterAt)))[0]??null;const enterVariance=hoursBetween(plan.plannedEnterAt,actual?.enteredAt),leaveVariance=hoursBetween(plan.plannedLeaveAt,actual?.leftAt);return <article className="data-card" key={`${plan.id}:actual`}><strong>{plan.id}</strong><span>Entrada planejada: {plan.plannedEnterAt}</span><span>Entrada real: {actual?.enteredAt??'Sem dados'}</span><span>Variação entrada: {enterVariance==null?'Sem dados':`${enterVariance} h`}</span><span>Saída planejada: {plan.plannedLeaveAt??'Sem dados'}</span><span>Saída real: {actual?.leftAt??'Sem dados'}</span><span>Variação saída: {leaveVariance==null?'Sem dados':`${leaveVariance} h`}</span></article>})}</div>:<p className="muted">Sem dados de planejamento para comparar.</p>}</section>

@@ -19,7 +19,7 @@ test('API contract digest ignores object key order but detects real contract dri
   assert.throws(()=>validateContractSnapshot({declared:a,current:b,baseline:{schemaVersion:1,sha256:'bad'}}),/baseline/i);
 });
 
-test('final P1 contract projection is frozen at 17/62/17',async()=>{
+test('public contract projection is frozen at 17/62/18',async()=>{
   const [product,declared,baseline]=await Promise.all([
     readFile(new URL('../qa/product-contract.json',import.meta.url),'utf8').then(JSON.parse),
     readFile(new URL('../qa/api-contract.json',import.meta.url),'utf8').then(JSON.parse),
@@ -28,7 +28,8 @@ test('final P1 contract projection is frozen at 17/62/17',async()=>{
   const current=projectProductContract(product);
   assert.equal(current.screens.length,17);
   assert.equal(Object.values(current.actions).flat().length,62);
-  assert.equal(current.rpcMethods.length,17);
+  assert.equal(current.rpcMethods.length,18);
+  assert.equal(current.rpcMethods.includes('maps'),true);
   assert.deepEqual(declared,current);
   assert.equal(contractDigest(current),baseline.sha256);
   assert.equal(validateContractSnapshot({declared,current,baseline}),true);

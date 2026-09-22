@@ -9,7 +9,8 @@ const product=JSON.parse(await readFile(new URL('../qa/product-contract.json',im
 test('final P1 contract owns body condition under animals, not pastures',()=>{
   assert.equal(product.screens.length,17);
   assert.equal(Object.values(product.actions).flat().length,62);
-  assert.equal(product.rpcMethods.length,17);
+  assert.equal(product.rpcMethods.length,18);
+  assert.equal(product.rpcMethods.includes('maps'),true);
   assert.deepEqual(product.actions.animals,[
     'save','recordMilk','move','lifecycle','batchMove','batchLifecycle','recordBodyCondition','registerBirth'
   ]);

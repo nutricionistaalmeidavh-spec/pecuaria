@@ -4,7 +4,7 @@ import {createBrowserPersistence,createBrowserRecovery} from '../shared/packages
 import {createCattlePresentation} from '../src/presentation.js';
 import {createRpcBackend} from '../runtime/backend.mjs';
 import {getActionForm} from './action-config.js';
-import {ActionDialog,AnimalDetail,CorralFlow,DataTable,DesktopShell,StatusBanner,WorkspaceScreen,FinanceMetrics,ReproductionSummary} from './components.jsx';
+import {ActionDialog,AnimalDetail,DataTable,DesktopShell,StatusBanner,WorkspaceScreen,FinanceMetrics,ReproductionSummary} from './components.jsx';
 import {OverviewDashboard} from './dashboard.jsx';
 import {ActionResultPanel,PastureDecisionPanel,ReproductionDecisionPanel,SanitaryAnalyticsPanel,ProductiveIntelligencePanel,FinanceDecisionPanel,CommercialSummaryPanel,CommercialSimulator,AdvancedReportsPanel,IoTDetailsPanel} from './depth-components.jsx';
 import {SanitaryApplicationsPanel} from './depth-operations.jsx';
@@ -12,8 +12,10 @@ import {ProfessionalReproductionPanel,UserAdministrationPanel} from './pro-manag
 import {FieldMobileWorkspace} from './field-mobile.jsx';
 import {FinanceAdminWorkspace} from './finance-admin.jsx';
 import {PastureManagementWorkspace} from './pasture-management.jsx';
+import {AnimalOperationsBar,FieldP0CommandBar,P0CorralFlow,SectionJumpNav,SettingsBackupPanel,TradeLiveSummary} from './p0-ux.jsx';
 import {Icon} from './icons.jsx';
 import './styles.css';
+import './p0.css';
 
 async function getBackend(){
   if(globalThis.artisys)return globalThis.artisys;
@@ -73,6 +75,7 @@ function App(){
   const [screenId,setScreenId]=useState(null);
   const [data,setData]=useState(null);
   const [action,setAction]=useState(null);
+  const [actionContext,setActionContext]=useState(null);
   const [busy,setBusy]=useState(false);
   const [credentials,setCredentials]=useState({username:'admin',password:''});
   const [hasUsers,setHasUsers]=useState(true);
@@ -132,9 +135,7 @@ function App(){
     try{
       if(!hasUsers){await backend.bootstrap(credentials);setHasUsers(true)}
       const result=await backend.login(credentials);
-      setHasUsers(true);
-      setMeta(null);
-      setScreenId(null);
+      setHasUsers(true);setMeta(null);setScreenId(null);
       const nextAuth={sessionId:result.session.id,token:result.token};setAuth(nextAuth);backend.references({auth:nextAuth}).then(setReferences).catch(()=>{});
     }catch(error){setNotice({tone:'error',text:error.message})}
   }
@@ -155,7 +156,8 @@ function App(){
   if(!auth)return <div className="login-page"><form className="login-card" onSubmit={login}><div><span className="eyebrow">Gestão pecuária local</span><h1>ArtiSys Pecuária</h1><p>{hasUsers?'Entre para acessar a fazenda.':'Crie o administrador local deste computador.'}</p></div><label><span>Usuário</span><input data-testid="username" autoComplete="username" value={credentials.username} onChange={e=>setCredentials({...credentials,username:e.target.value})}/></label><label><span>Senha</span><input data-testid="password" type="password" minLength="8" autoComplete={hasUsers?'current-password':'new-password'} value={credentials.password} onChange={e=>setCredentials({...credentials,password:e.target.value})}/></label><button data-testid="auth-submit" className="primary">{hasUsers?'Entrar':'Criar administrador'}</button>{notice&&<StatusBanner tone={notice.tone}>{notice.text}</StatusBanner>}</form></div>;
   if(!meta)return <div className="boot" data-testid="authenticated-loading">Carregando ambiente da fazenda…</div>;
 
-  const navigate=(id,targetId=null)=>{setScreenId(id);setNotice(null);setAnimalDetail(null);setActionResult(null);setSimulationResult(null);if(targetId&&id==='animals')backend.load({screenId:'animals',auth,context:{animalId:targetId}}).then(x=>setAnimalDetail(x.detail)).catch(()=>{});};
+  const openAction=(name,context=null)=>{setAction(name);setActionContext(context);setNotice(null)};
+  const navigate=(id,targetId=null)=>{setScreenId(id);setNotice(null);setAnimalDetail(null);setActionResult(null);setSimulationResult(null);setAction(null);setActionContext(null);if(targetId&&id==='animals')backend.load({screenId:'animals',auth,context:{animalId:targetId}}).then(x=>setAnimalDetail(x.detail)).catch(()=>{});};
   const openEntity=result=>{
     const collection=String(result?.collection??result?.entityType??''),id=result?.id??result?.entityId??result?.animalId??null,payload=result?.payload??{};
     if(collection.includes('animal'))return navigate('animals',id);
@@ -182,43 +184,59 @@ function App(){
   const secondaryRecords=screenId==='inventory'?data?.movements:screenId==='pastures'?data?.occupancy:screenId==='sanitary'?data?.protocols:null;
   const secondaryTitle=screenId==='inventory'?'Histórico de movimentações':screenId==='pastures'?'Histórico de ocupação':screenId==='sanitary'?'Protocolos sanitários':null;
   const reproductionFemales=(references.animals??[]).filter(animal=>animal.status==='active'&&animal.sex==='female');
+  const accessActions=meta?.access?.[screenId]?.actions??[];
 
   return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Dashboard'} notificationCount={screenId==='overview'?(data?.alerts?.length??0):0}
     onSearch={async term=>{try{setSearchResults(await backend.search({term,auth}));setAlertResults(null)}catch(error){setNotice({tone:'error',text:error.message})}}}
     onNotifications={async()=>{try{setAlertResults(await backend.alerts({auth}));setSearchResults(null)}catch(error){setNotice({tone:'error',text:error.message})}}}
-    onLogout={async()=>{try{await backend.logout(auth)}catch{}finally{setAuth(null);setMeta(null);setScreenId(null);setData(null);setReferences({});setActionResult(null);setAuditResults(null);setDepthInsights(null);setSimulationResult(null);setReproductionAdminState(null);setUserAdminState(null);setFieldSyncState(null)}}}>
+    onLogout={async()=>{try{await backend.logout(auth)}catch{}finally{setAuth(null);setMeta(null);setScreenId(null);setData(null);setReferences({});setActionResult(null);setAuditResults(null);setDepthInsights(null);setSimulationResult(null);setReproductionAdminState(null);setUserAdminState(null);setFieldSyncState(null);setActionContext(null)}}}>
     {notice&&<StatusBanner tone={notice.tone}>{notice.text}</StatusBanner>}
     {actionResult&&<ActionResultPanel result={actionResult} onClose={()=>setActionResult(null)}/>} 
     {searchResults&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Busca global</span><h2>Resultados</h2><p>{searchResults.length} registro(s) encontrado(s).</p></div><button className="ghost" onClick={()=>setSearchResults(null)}>Fechar</button></div><DataTable records={searchResults}/><div className="actions">{searchResults.map((r,i)=><button data-testid={`search-open-${i}`} key={r.id??i} onClick={()=>{openEntity(r);setSearchResults(null)}}>Abrir registro</button>)}</div></section>}
     {alertResults&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Central de alertas</span><h2>Pendências</h2><p>{alertResults.length} alerta(s) operacional(is).</p></div><button className="ghost" onClick={()=>setAlertResults(null)}>Fechar</button></div><DataTable records={alertResults}/><div className="actions">{alertResults.filter(a=>a.target).map(a=><button key={a.id} onClick={()=>{navigate(a.target,a.targetId);setAlertResults(null)}}>Abrir {a.target}</button>)}</div></section>}
     <UpdatePanel updates={updates} state={updateState} onState={setUpdateState}/>
-    {screenId==='settings'&&updates&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Aplicativo</span><h2>Atualizações</h2><p>Versão instalada: {updateState?.currentVersion??'—'}.</p></div><div className="actions"><button data-testid="check-updates" onClick={async()=>{setUpdateState(await updates.check())}}>Verificar atualizações</button></div></div>{updateState?.status==='current'&&<StatusBanner tone="success">Você está usando a versão mais recente.</StatusBanner>}{updateState?.status==='error'&&<StatusBanner tone="error">Não foi possível verificar atualizações agora. O sistema continua disponível offline.</StatusBanner>}</section>}
+
+    {screenId==='settings'&&<SectionJumpNav testId="settings-tabs" label="Áreas de configuração" items={[{id:'users',label:'Usuários',target:'user-administration'},{id:'permissions',label:'Perfis e permissões',target:'permission-matrix'},{id:'audit',label:'Auditoria',target:'audit-panel'},{id:'backup',label:'Backup',target:'settings-backup-panel'},{id:'updates',label:'Atualizações',target:'settings-updates-panel'}]}/>} 
+    {screenId==='settings'&&updates&&<section className="panel" data-testid="settings-updates-panel"><div className="panel-heading"><div><span className="eyebrow">Aplicativo</span><h2>Atualizações</h2><p>Versão instalada: {updateState?.currentVersion??'—'}.</p></div><div className="actions"><button data-testid="check-updates" onClick={async()=>{setUpdateState(await updates.check())}}>Verificar atualizações</button></div></div>{updateState?.status==='current'&&<StatusBanner tone="success">Você está usando a versão mais recente.</StatusBanner>}{updateState?.status==='error'&&<StatusBanner tone="error">Não foi possível verificar atualizações agora. O sistema continua disponível offline.</StatusBanner>}</section>}
     {screenId==='settings'&&userAdminState&&<UserAdministrationPanel state={userAdminState} onAction={runUserAdmin}/>} 
+    {screenId==='settings'&&<SettingsBackupPanel screen={screen} allowedActions={accessActions} onAction={name=>openAction(name)}/>} 
     {screenId==='settings'&&<section className="panel" data-testid="audit-panel"><div className="panel-heading"><div><span className="eyebrow">Segurança</span><h2>Trilha de auditoria</h2><p>Consulta local das operações registradas para perfis autorizados.</p></div><div className="actions"><button type="button" onClick={async()=>{try{setAuditResults(await backend.audit({auth,filter:{limit:100}}))}catch(error){setNotice({tone:'error',text:error.message})}}}>Carregar auditoria</button></div></div>{auditResults&&<DataTable records={auditResults}/>}</section>}
+
     {screenId==='overview'?<OverviewDashboard data={data} onNavigate={navigate}/>:<>
+      {screenId==='finance'&&<SectionJumpNav testId="finance-admin-tabs" label="Áreas financeiras" items={[{id:'result',label:'Resultado por lote',target:'finance-lot-selector'},{id:'cash',label:'Caixa e previsão',target:'finance-cash-summary'},{id:'titles',label:'Títulos',target:'finance-titles'},{id:'settlements',label:'Baixas',target:'finance-context-reverse'},{id:'reconcile',label:'Conciliação',target:'finance-reconciliation'}]}/>} 
       {screenId==='finance'&&<section className="panel" data-testid="finance-lot-selector"><div className="panel-heading"><div><span className="eyebrow">Resultado por lote</span><h2>Escolha o lote analisado</h2><p>Os indicadores econômicos abaixo são recalculados para o lote selecionado.</p></div></div><div className="form-grid"><label><span>Lote</span><select value={financeLotId} onChange={e=>setFinanceLotId(e.target.value)}><option value="">Selecione um lote</option>{(references.lots??[]).map(lot=><option key={lot.id} value={lot.id}>{lot.name??lot.id}</option>)}</select></label></div></section>}
       {screenId==='finance'&&<FinanceMetrics metrics={data?.metrics}/>} 
       {screenId==='finance'&&<FinanceDecisionPanel insights={depthInsights}/>} 
       {screenId==='finance'&&<FinanceAdminWorkspace data={data} allowedActions={meta?.access?.finance?.actions??[]} onRun={async(name,input)=>{try{const result=await runAction('finance',name,input);surfaceResult(result,{screen:'finance',name});await load('finance');setNotice({tone:'success',text:name==='importInvoiceXml'?'XML lido localmente. Revise a sugestão antes de criar o título.':'Financeiro administrativo atualizado.'});return result}catch(error){setNotice({tone:'error',text:error.message});throw error}}}/>} 
+
+      {screenId==='reproduction'&&<SectionJumpNav testId="reproduction-tabs" label="Áreas de reprodução" items={[{id:'overview',label:'Visão geral',target:'reproduction-summary'},{id:'operation',label:'Serviços',target:'professional-reproduction'},{id:'genetics',label:'Genética',target:'genetics-register'},{id:'doses',label:'Doses',target:'semen-dose-stock'},{id:'season',label:'Estação de monta',target:'breeding-season'},{id:'efficiency',label:'Eficiência',target:'reproduction-efficiency'}]}/>} 
       {screenId==='reproduction'&&<ReproductionSummary records={rows} metrics={data?.metrics}/>} 
       {screenId==='reproduction'&&<ReproductionDecisionPanel insights={depthInsights}/>} 
       {screenId==='reproduction'&&reproductionAdminState&&<ProfessionalReproductionPanel state={reproductionAdminState} animals={reproductionFemales} onAction={runReproductionAdmin}/>} 
+
+      {screenId==='sanitary'&&<SectionJumpNav testId="sanitary-tabs" label="Áreas de sanidade" items={[{id:'summary',label:'Situação sanitária',target:'sanitary-analytics'},{id:'applications',label:'Aplicações',target:'sanitary-applications-detail'},{id:'protocols',label:'Protocolos',target:'secondary-sanitary'}]}/>} 
       {screenId==='sanitary'&&<SanitaryAnalyticsPanel insights={depthInsights}/>} 
       {screenId==='sanitary'&&<SanitaryApplicationsPanel events={data?.events??[]}/>} 
+
+      {screenId==='pastures'&&<SectionJumpNav testId="pasture-tabs" label="Áreas de pastagem" items={[{id:'overview',label:'Visão geral',target:'pasture-status-cards'},{id:'map',label:'Mapa e ocupação',target:'pasture-local-map'},{id:'assessment',label:'Avaliações',target:'pasture-assessments'},{id:'rotation',label:'Rotação',target:'pasture-rotation-plan'},{id:'performance',label:'Planejado x realizado',target:'pasture-plan-vs-actual'}]}/>} 
       {screenId==='pastures'&&<PastureManagementWorkspace data={data?.management}/>} 
       {screenId==='pastures'&&<PastureDecisionPanel insights={depthInsights}/>} 
+
       {screenId==='weights'&&<ProductiveIntelligencePanel insights={depthInsights}/>} 
       {screenId==='trades'&&<CommercialSummaryPanel insights={depthInsights}/>} 
       {screenId==='trades'&&<CommercialSimulator lots={references.lots??[]} result={simulationResult} onSimulate={async input=>{try{setSimulationResult(await backend.simulateSale({auth,...input}))}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
+      {screenId==='trades'&&<TradeLiveSummary result={simulationResult}/>} 
       {screenId==='reports'&&<AdvancedReportsPanel lots={references.lots??[]} onGenerate={async({format,...input})=>{try{const result=await backend.action({screenId:'reports',action:format,input,auth,context:{}});surfaceResult(result,{screen:'reports',name:format})}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
+      {screenId==='tasks'&&<FieldP0CommandBar syncState={fieldSyncState}/>} 
       {screenId==='tasks'&&<FieldMobileWorkspace tasks={rows} animals={references.animals??[]} lots={references.lots??[]} protocols={references.protocols??[]} fieldData={references} syncState={fieldSyncState} onSync={runFieldSync}/>} 
       {screenId==='iot'&&<IoTDetailsPanel data={data}/>} 
-      {screenId==='weights'&&<CorralFlow animals={references.animals??[]} onRecord={async input=>{await runAction('weights','record',input);await load('weights');backend.references({auth}).then(setReferences)}}/>}
+      {screenId==='weights'&&<P0CorralFlow animals={references.animals??[]} onRecord={async input=>{await runAction('weights','record',input);await load('weights');backend.references({auth}).then(setReferences)}}/>}
+      {screenId==='animals'&&<AnimalOperationsBar records={rows} screen={screen} allowedActions={accessActions} onAction={openAction}/>} 
       {screenId==='animals'&&animalDetail&&<AnimalDetail detail={animalDetail} onClose={()=>setAnimalDetail(null)}/>} 
-      <div className={screenId==='tasks'?'field-desktop-only':undefined}><WorkspaceScreen screenId={screenId} screen={screen} icon={screenNavigation?.icon} records={rows} secondaryRecords={secondaryRecords} secondaryTitle={secondaryTitle} allowedActions={meta?.access?.[screenId]?.actions??[]} onAction={async name=>{if(screenId==='animals'&&name==='view360')return;setAction(name);setNotice(null)}}/></div>
+      <div className={`${screenId==='tasks'?'field-desktop-only ':''}${screenId==='animals'?'animal-p0-wrapper':''}`}><WorkspaceScreen screenId={screenId} screen={screen} icon={screenNavigation?.icon} records={rows} secondaryRecords={secondaryRecords} secondaryTitle={secondaryTitle} allowedActions={accessActions} onAction={async name=>{if(screenId==='animals'&&name==='view360')return;openAction(name)}}/></div>
       {screenId==='animals'&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Ficha individual</span><h2>Abrir animal 360º</h2></div></div><div className="form-grid"><label><span>Animal</span><select defaultValue="" onChange={async e=>{if(!e.target.value)return;const detailData=await backend.load({screenId:'animals',auth,context:{animalId:e.target.value}});setAnimalDetail(detailData.detail)}}><option value="">Selecione</option>{(references.animals??[]).map(a=><option key={a.id} value={a.id}>{a.tag??a.name??a.id}</option>)}</select></label></div></section>}
     </>}
-    <ActionDialog open={Boolean(action)} definition={activeForm} actionKey={action?`${screenId}.${action}`:null} references={references} busy={busy} onClose={()=>setAction(null)} onSubmit={async input=>{setBusy(true);setNotice(null);try{const actionName=action,result=await backend.action({screenId,action:actionName,input,auth,context:{}});surfaceResult(result,{screen:screenId,name:actionName});setAction(null);setNotice({tone:'success',text:'Operação concluída com sucesso.'});await load();backend.references({auth}).then(setReferences).catch(()=>{})}catch(error){setNotice({tone:'error',text:error.message})}finally{setBusy(false)}}}/>
+    <ActionDialog open={Boolean(action)} definition={activeForm} actionKey={action?`${screenId}.${action}`:null} references={references} initialValues={actionContext?.initialValues??{}} busy={busy} onClose={()=>{setAction(null);setActionContext(null)}} onSubmit={async input=>{setBusy(true);setNotice(null);try{const actionName=action,result=await backend.action({screenId,action:actionName,input,auth,context:{}});surfaceResult(result,{screen:screenId,name:actionName});setAction(null);setActionContext(null);setNotice({tone:'success',text:'Operação concluída com sucesso.'});await load();backend.references({auth}).then(setReferences).catch(()=>{})}catch(error){setNotice({tone:'error',text:error.message})}finally{setBusy(false)}}}/>
   </DesktopShell>;
 }
 

@@ -57,8 +57,9 @@ export async function runAction(page,screen,action,values={},options={}){
     await expect(page.getByRole('alert')).toContainText(options.expectError);
     return;
   }
-  // Windows hosted runners can be slower under parallel IndexedDB/SQLite-heavy journeys.
-  // Keep this fail-closed, but allow a completed local mutation enough time to settle.
+  // Windows GitHub runners can be materially slower for local persistence-heavy
+  // journeys under parallel Playwright load. Keep these assertions fail-closed,
+  // while allowing a completed local mutation enough time to settle.
   await expect(dialog).toBeHidden({timeout:15000});
   await expect(page.getByRole('status').filter({hasText:'Operação concluída com sucesso.'})).toBeVisible({timeout:15000});
 }

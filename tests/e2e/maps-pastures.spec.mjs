@@ -5,7 +5,7 @@ async function login(page){
   await page.goto('/');
   await page.getByTestId('password').fill(password);
   await page.getByTestId('auth-submit').click();
-  await expect(page.getByText('Gestão Pecuária')).toBeVisible();
+  await expect(page.getByTestId('nav-pastures')).toBeVisible();
 }
 
 test('pastures preserves schematic fallback and exposes geographic map, editor and browser offline state',async({page},testInfo)=>{
@@ -34,6 +34,7 @@ test('authenticated browser maps persist spatial point across reload',async({pag
   await page.reload();
   await page.getByTestId('password').fill(password);
   await page.getByTestId('auth-submit').click();
+  await expect(page.getByTestId('nav-pastures')).toBeVisible();
   await page.getByTestId('nav-pastures').click();
   await page.getByTestId('map-mode-geographic').click();
   await expect(page.getByText('Bebedouro QA')).toBeVisible();

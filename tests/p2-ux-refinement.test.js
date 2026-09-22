@@ -22,7 +22,7 @@ test('P2 exposes dashboard and field favorites plus adaptive density',async()=>{
   assert.match(p2,/density-control/);
   assert.match(dashboard,/P2DashboardControls/);
   assert.match(p0,/field-favorites/);
-  assert.match(p0,/useP2Preferences/);
+  assert.match(p0,/P2FieldFavorites/);
 });
 
 test('P2 standardizes intent microcopy and keyboard accessibility',async()=>{

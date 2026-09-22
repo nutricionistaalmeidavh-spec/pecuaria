@@ -6,7 +6,8 @@ const source=path=>readFile(new URL(path,import.meta.url),'utf8');
 
 test('P2 keeps profile preferences and telemetry local-only',async()=>{
   const runtime=await source('../web/p2-runtime.js');
-  assert.match(runtime,/artisys-pecuaria:p2:prefs/);
+  assert.match(runtime,/artisys-pecuaria:p2/);
+  assert.match(runtime,/PREFS_PREFIX/);
   assert.match(runtime,/localStorage/);
   assert.match(runtime,/telemetry/);
   assert.match(runtime,/enabled/);
@@ -19,9 +20,9 @@ test('P2 exposes dashboard and field favorites plus adaptive density',async()=>{
   const dashboard=await source('../web/dashboard.jsx');
   const p0=await source('../web/p0-ux.jsx');
   assert.match(p2,/dashboard-favorites/);
+  assert.match(p2,/field-favorites/);
   assert.match(p2,/density-control/);
   assert.match(dashboard,/P2DashboardControls/);
-  assert.match(p0,/field-favorites/);
   assert.match(p0,/P2FieldFavorites/);
 });
 

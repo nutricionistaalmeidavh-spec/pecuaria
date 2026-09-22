@@ -6,16 +6,18 @@ import {createRpcBackend} from '../runtime/backend.mjs';
 import {getActionForm} from './action-config.js';
 import {ActionDialog,AnimalDetail,DataTable,DesktopShell,StatusBanner,WorkspaceScreen,FinanceMetrics,ReproductionSummary} from './components.jsx';
 import {OverviewDashboard} from './dashboard.jsx';
-import {ActionResultPanel,PastureDecisionPanel,ReproductionDecisionPanel,SanitaryAnalyticsPanel,ProductiveIntelligencePanel,FinanceDecisionPanel,CommercialSummaryPanel,CommercialSimulator,AdvancedReportsPanel,IoTDetailsPanel} from './depth-components.jsx';
+import {ActionResultPanel,PastureDecisionPanel,ReproductionDecisionPanel,SanitaryAnalyticsPanel,ProductiveIntelligencePanel,FinanceDecisionPanel,CommercialSummaryPanel,CommercialSimulator,IoTDetailsPanel} from './depth-components.jsx';
 import {SanitaryApplicationsPanel} from './depth-operations.jsx';
 import {ProfessionalReproductionPanel,UserAdministrationPanel} from './pro-management.jsx';
 import {FieldMobileWorkspace} from './field-mobile.jsx';
 import {FinanceAdminWorkspace} from './finance-admin.jsx';
 import {PastureManagementWorkspace} from './pasture-management.jsx';
 import {AnimalOperationsBar,FieldP0CommandBar,P0CorralFlow,SectionJumpNav,SettingsBackupPanel,TradeLiveSummary} from './p0-ux.jsx';
+import {P1DataTransferPanel,P1InventoryPanel,P1IoTDevicesPanel,P1NutritionPanel,P1ReportBuilder,P1TraceabilityPanel} from './p1-ux.jsx';
 import {Icon} from './icons.jsx';
 import './styles.css';
 import './p0.css';
+import './p1.css';
 
 async function getBackend(){
   if(globalThis.artisys)return globalThis.artisys;
@@ -185,6 +187,7 @@ function App(){
   const secondaryTitle=screenId==='inventory'?'Histórico de movimentações':screenId==='pastures'?'Histórico de ocupação':screenId==='sanitary'?'Protocolos sanitários':null;
   const reproductionFemales=(references.animals??[]).filter(animal=>animal.status==='active'&&animal.sex==='female');
   const accessActions=meta?.access?.[screenId]?.actions??[];
+  const p1Screens=new Set(['reports','traceability','inventory','nutrition','data','iot']);
 
   return <DesktopShell brand={brand} navigation={navigation} title={screen?.title??'Dashboard'} notificationCount={screenId==='overview'?(data?.alerts?.length??0):0}
     onSearch={async term=>{try{setSearchResults(await backend.search({term,auth}));setAlertResults(null)}catch(error){setNotice({tone:'error',text:error.message})}}}
@@ -226,14 +229,21 @@ function App(){
       {screenId==='trades'&&<CommercialSummaryPanel insights={depthInsights}/>} 
       {screenId==='trades'&&<CommercialSimulator lots={references.lots??[]} result={simulationResult} onSimulate={async input=>{try{setSimulationResult(await backend.simulateSale({auth,...input}))}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
       {screenId==='trades'&&<TradeLiveSummary result={simulationResult}/>} 
-      {screenId==='reports'&&<AdvancedReportsPanel lots={references.lots??[]} onGenerate={async({format,...input})=>{try{const result=await backend.action({screenId:'reports',action:format,input,auth,context:{}});surfaceResult(result,{screen:'reports',name:format})}catch(error){setNotice({tone:'error',text:error.message})}}}/>} 
+
+      {screenId==='reports'&&<P1ReportBuilder lots={references.lots??[]} animals={references.animals??[]} onGenerate={async({format,...input})=>{try{const result=await backend.action({screenId:'reports',action:format,input,auth,context:{}});surfaceResult(result,{screen:'reports',name:format});return result}catch(error){setNotice({tone:'error',text:error.message});throw error}}}/>} 
+      {screenId==='traceability'&&<P1TraceabilityPanel records={rows} allowedActions={accessActions} onAction={openAction}/>} 
+      {screenId==='inventory'&&<P1InventoryPanel items={rows} movements={data?.movements??[]} allowedActions={accessActions} onAction={openAction}/>} 
+      {screenId==='nutrition'&&<P1NutritionPanel plans={rows} inventory={references.inventory??[]} animals={references.animals??[]} lots={references.lots??[]} allowedActions={accessActions} onAction={openAction}/>} 
+      {screenId==='data'&&<P1DataTransferPanel references={references} allowedActions={accessActions} onAction={openAction}/>} 
+      {screenId==='iot'&&<P1IoTDevicesPanel data={data} allowedActions={accessActions} onAction={openAction}/>} 
+
       {screenId==='tasks'&&<FieldP0CommandBar syncState={fieldSyncState}/>} 
       {screenId==='tasks'&&<FieldMobileWorkspace tasks={rows} animals={references.animals??[]} lots={references.lots??[]} protocols={references.protocols??[]} fieldData={references} syncState={fieldSyncState} onSync={runFieldSync}/>} 
       {screenId==='iot'&&<IoTDetailsPanel data={data}/>} 
       {screenId==='weights'&&<P0CorralFlow animals={references.animals??[]} onRecord={async input=>{await runAction('weights','record',input);await load('weights');backend.references({auth}).then(setReferences)}}/>}
       {screenId==='animals'&&<AnimalOperationsBar records={rows} screen={screen} allowedActions={accessActions} onAction={openAction}/>} 
       {screenId==='animals'&&animalDetail&&<AnimalDetail detail={animalDetail} onClose={()=>setAnimalDetail(null)}/>} 
-      <div className={`${screenId==='tasks'?'field-desktop-only ':''}${screenId==='animals'?'animal-p0-wrapper':''}`}><WorkspaceScreen screenId={screenId} screen={screen} icon={screenNavigation?.icon} records={rows} secondaryRecords={secondaryRecords} secondaryTitle={secondaryTitle} allowedActions={accessActions} onAction={async name=>{if(screenId==='animals'&&name==='view360')return;openAction(name)}}/></div>
+      <div className={`${screenId==='tasks'?'field-desktop-only ':''}${screenId==='animals'?'animal-p0-wrapper ':''}${p1Screens.has(screenId)?'p1-supporting-surface':''}`}><WorkspaceScreen screenId={screenId} screen={screen} icon={screenNavigation?.icon} records={rows} secondaryRecords={secondaryRecords} secondaryTitle={secondaryTitle} allowedActions={accessActions} onAction={async name=>{if(screenId==='animals'&&name==='view360')return;openAction(name)}}/></div>
       {screenId==='animals'&&<section className="panel"><div className="panel-heading"><div><span className="eyebrow">Ficha individual</span><h2>Abrir animal 360º</h2></div></div><div className="form-grid"><label><span>Animal</span><select defaultValue="" onChange={async e=>{if(!e.target.value)return;const detailData=await backend.load({screenId:'animals',auth,context:{animalId:e.target.value}});setAnimalDetail(detailData.detail)}}><option value="">Selecione</option>{(references.animals??[]).map(a=><option key={a.id} value={a.id}>{a.tag??a.name??a.id}</option>)}</select></label></div></section>}
     </>}
     <ActionDialog open={Boolean(action)} definition={activeForm} actionKey={action?`${screenId}.${action}`:null} references={references} initialValues={actionContext?.initialValues??{}} busy={busy} onClose={()=>{setAction(null);setActionContext(null)}} onSubmit={async input=>{setBusy(true);setNotice(null);try{const actionName=action,result=await backend.action({screenId,action:actionName,input,auth,context:{}});surfaceResult(result,{screen:screenId,name:actionName});setAction(null);setActionContext(null);setNotice({tone:'success',text:'Operação concluída com sucesso.'});await load();backend.references({auth}).then(setReferences).catch(()=>{})}catch(error){setNotice({tone:'error',text:error.message})}finally{setBusy(false)}}}/>

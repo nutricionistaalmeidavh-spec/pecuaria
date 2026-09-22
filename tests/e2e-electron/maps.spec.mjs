@@ -12,7 +12,7 @@ test('Electron maps cross renderer preload IPC and persist local spatial data of
     const page=await app.firstWindow();
     await page.getByTestId('password').fill(password);
     await page.getByTestId('auth-submit').click();
-    await expect(page.getByText('Gestão Pecuária')).toBeVisible();
+    await expect(page.getByTestId('nav-pastures')).toBeVisible();
     const state=await page.evaluate(()=>globalThis.artisys.maps({operation:'state'}));
     expect(state.provider.platform).toBe(process.platform);
     await page.evaluate(()=>globalThis.artisys.maps({operation:'savePoint',input:{id:'electron-water',kind:'water',name:'Bebedouro Electron',farmUnitId:'farm-electron',longitude:-47.9,latitude:-21.2}}));
@@ -25,6 +25,7 @@ test('Electron maps cross renderer preload IPC and persist local spatial data of
     await page.reload();
     await page.getByTestId('password').fill(password);
     await page.getByTestId('auth-submit').click();
+    await expect(page.getByTestId('nav-pastures')).toBeVisible();
     await page.getByTestId('nav-pastures').click();
     await page.getByTestId('map-mode-geographic').click();
     await expect(page.getByText('Bebedouro Electron')).toBeVisible();

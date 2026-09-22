@@ -7,10 +7,11 @@ const product=JSON.parse(await readFile(new URL('../qa/product-contract.json',im
 const api=JSON.parse(await readFile(new URL('../qa/api-contract.json',import.meta.url),'utf8'));
 const countActions=contract=>Object.values(contract.actions).reduce((sum,actions)=>sum+actions.length,0);
 
-test('P1C final public surface is exactly 17 screens, 62 actions and 17 RPCs',()=>{
+test('public surface is exactly 17 screens, 62 actions and 18 RPCs',()=>{
   assert.equal(product.screens.length,17);
   assert.equal(countActions(product),62);
-  assert.equal(product.rpcMethods.length,17);
+  assert.equal(product.rpcMethods.length,18);
+  assert.equal(product.rpcMethods.includes('maps'),true);
   assert.deepEqual(api.screens,product.screens);
   assert.deepEqual(api.actions,product.actions);
   assert.deepEqual(api.rpcMethods,product.rpcMethods);
@@ -18,6 +19,7 @@ test('P1C final public surface is exactly 17 screens, 62 actions and 17 RPCs',()
   assert.deepEqual(product.actions.pastures,['save','enterLot','leaveLot','recordAssessment','saveRotationPlan']);
   assert.equal(actionFormKeys().includes('animals.recordBodyCondition'),true);
   assert.equal(actionFormKeys().includes('animals.registerBirth'),true);
+  assert.deepEqual(product.mapOperations,['state','refreshCatalog','planOffline','installFarmMap','verifyFarmMap','removeFarmMap','saveGeometry','removeGeometry','savePoint','removePoint']);
 });
 
 test('registerBirth has an explicit typed form and normalizes required and optional fields',()=>{

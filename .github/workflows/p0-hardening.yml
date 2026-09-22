@@ -16,12 +16,15 @@ on:
       - ux-p0-sales-readiness
       - ux-p1-daily-efficiency
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,6 +44,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser E2E
         run: npm run qa:web
+      - name: Electron maps E2E
+        run: xvfb-run -a npm run test:e2e:electron:maps
       - name: Phase 5 functional evidence
         run: npm run qa:surface
       - name: API contract gate
@@ -57,4 +62,5 @@ jobs:
           path: |
             qa-artifacts/*.json
             qa-artifacts/playwright-report
+            qa-artifacts/playwright-electron-report
           if-no-files-found: warn

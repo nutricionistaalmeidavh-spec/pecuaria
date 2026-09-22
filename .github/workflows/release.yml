@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - release/fully-automated-github
+      - fix/windows-release-e2e-serial
     tags:
       - 'v*'
   workflow_dispatch:
@@ -53,6 +54,8 @@ jobs:
 
       - name: Browser E2E
         run: npm run qa:web
+        env:
+          PLAYWRIGHT_WORKERS: '1'
 
       - name: Phase 5 functional evidence
         run: npm run qa:surface

@@ -1,5 +1,4 @@
 import React,{useMemo,useRef,useState} from 'react';
-import {DataTable} from './components.jsx';
 
 const money=value=>value==null||!Number.isFinite(Number(value))?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)/100);
 const number=(value,digits=1)=>value==null||!Number.isFinite(Number(value))?'—':new Intl.NumberFormat('pt-BR',{maximumFractionDigits:digits}).format(Number(value));
@@ -40,9 +39,9 @@ export function AnimalOperationsBar({records=[],screen,allowedActions=[],onActio
   const run=name=>onAction?.(name,{initialValues:animalActionInitial(name,selected)});
   const toggle=id=>setSelected(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id]);
   return <section className="panel animal-operations" data-testid="animal-operations">
-    <div className="panel-heading"><div><span className="eyebrow">Operação rápida</span><h2>Animais</h2><p>Localize por brinco, RFID ou identificação oficial, selecione um ou vários animais e execute o manejo com contexto.</p></div>{can('save')&&<button className="primary" type="button" data-testid="animal-primary-create" onClick={()=>run('save')}>Novo animal</button>}</div>
+    <div className="panel-heading"><div><span className="eyebrow">Operação rápida</span><h2>Seleção e manejo</h2><p>Localize por brinco, RFID ou identificação oficial, selecione um ou vários animais e execute o manejo com contexto.</p></div>{can('save')&&<button className="primary" type="button" data-testid="animal-primary-create" onClick={()=>run('save')}>Novo animal</button>}</div>
     <div className="animal-operations-toolbar"><label><span>Buscar animal</span><input type="search" data-testid="animal-operation-search" placeholder="Brinco, RFID, SISBOV ou nome" value={query} onChange={event=>setQuery(event.target.value)}/></label><span className="animal-selection-count" data-testid="animal-selection-count">{selected.length} selecionado(s)</span>{selected.length>0&&<button type="button" className="ghost" onClick={()=>setSelected([])}>Limpar seleção</button>}</div>
-    {rows.length>0&&<div className="animal-select-list" aria-label="Seleção de animais">{filtered.slice(0,80).map(row=><label className="animal-select-row" key={row.id}><input type="checkbox" checked={selected.includes(row.id)} onChange={()=>toggle(row.id)}/><span><strong>{row.tag??row.name??row.id}</strong><small>{row.rfid??row.officialId??row.lotId??'Sem identificação complementar'}</small></span></label>)}</div>}
+    {rows.length>0&&<><div className="animal-operation-result-count">{filtered.length} animal(is) encontrado(s)</div><div className="animal-select-list" aria-label="Seleção de animais">{filtered.slice(0,80).map(row=><label className="animal-select-row" key={row.id}><input type="checkbox" checked={selected.includes(row.id)} onChange={()=>toggle(row.id)}/><span><strong>{row.tag??row.name??row.id}</strong><small>{row.rfid??row.officialId??row.lotId??'Sem identificação complementar'}</small></span></label>)}</div></>}
     <div className="animal-action-groups">
       {can('registerBirth')&&<button type="button" onClick={()=>run('registerBirth')}>Registrar nascimento</button>}
       {can('move')&&<button type="button" disabled={selected.length!==1} onClick={()=>run('move')}>Mover selecionado</button>}
@@ -52,7 +51,6 @@ export function AnimalOperationsBar({records=[],screen,allowedActions=[],onActio
       {can('batchLifecycle')&&<button type="button" disabled={selected.length<2} onClick={()=>run('batchLifecycle')}>Baixa coletiva</button>}
       {can('lifecycle')&&<button type="button" disabled={selected.length!==1} onClick={()=>run('lifecycle')}>Ciclo de vida</button>}
     </div>
-    <DataTable records={filtered}/>
   </section>;
 }
 

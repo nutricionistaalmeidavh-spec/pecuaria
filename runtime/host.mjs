@@ -6,7 +6,7 @@ import {createBackupManager} from '../src/backup.js';
 import {createCattlePresentation} from '../src/presentation.js';
 import {createCattleMapService} from '../src/pecuaria-map.js';
 import {createRpcBackend} from './backend.mjs';
-import {createMapCatalog} from './map-catalog.mjs';
+import {createMapPackageManager} from './map-package-manager.mjs';
 import {createMapRpc} from './map-rpc.mjs';
 import {createNodeIoTDrivers} from './iot/node-drivers.mjs';
 import {createLocalSecretStore} from './iot/secret-store.mjs';
@@ -31,12 +31,12 @@ export async function createStandaloneHost({dataDir,backupDir=join(dataDir,'back
   const drivers=createNodeIoTDrivers();
   const presentation=createCattlePresentation({persistence,recovery,iotRuntime:{drivers,secretStore}});
   const mapService=createCattleMapService(persistence);
-  const mapCatalog=createMapCatalog({dataDir});
+  const mapPackageManager=createMapPackageManager({dataDir});
   const coreBackend=createRpcBackend({presentation,persistence});
-  const backend=Object.freeze({...coreBackend,maps:createMapRpc({presentation,mapService,mapCatalog})});
+  const backend=Object.freeze({...coreBackend,maps:createMapRpc({presentation,mapService,mapPackageManager})});
   const iotStartup=Promise.resolve().then(()=>presentation.services.iot.startEnabled()).catch(()=>[]);
   return{
-    persistence,recovery,presentation,backend,mapService,mapCatalog,
+    persistence,recovery,presentation,backend,mapService,mapPackageManager,mapCatalog:mapPackageManager,
     async close(){await iotStartup;await presentation.services.iot.shutdown();await closeDatabase();}
   };
 }

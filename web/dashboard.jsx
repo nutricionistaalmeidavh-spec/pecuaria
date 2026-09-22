@@ -1,5 +1,6 @@
 import React from 'react';
 import {Icon} from './icons.jsx';
+import {P2DashboardControls} from './p2-ux.jsx';
 
 const number=value=>value==null?'—':new Intl.NumberFormat('pt-BR',{maximumFractionDigits:1}).format(value);
 const money=value=>value==null?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(value/100);
@@ -116,6 +117,8 @@ export function OverviewDashboard({data,onNavigate}){
   };
   const sanitary=data?.sanitary??{totalEvents:data?.cards?.sanitaryEvents??0,alerts:primary.alerts};
   return <div className="dashboard-overview" data-testid="dashboard-overview">
+    <P2DashboardControls onNavigate={onNavigate}/>
+
     <section className="primary-kpis" data-testid="primary-kpis">
       {kpiDefinitions.map(definition=><KpiCard key={definition.key} definition={definition} value={primary[definition.key]}/>) }
     </section>

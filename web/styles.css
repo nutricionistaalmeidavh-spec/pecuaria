@@ -1,6 +1,7 @@
 @import './styles-base.css';
 @import './field-mobile.css';
 @import './finance-admin.css';
+@import './p2.css';
 
 @media (max-width: 720px){
   .field-mobile-workspace button,.field-mobile-workspace select{touch-action:manipulation}

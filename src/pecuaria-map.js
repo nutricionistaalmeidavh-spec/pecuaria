@@ -22,14 +22,16 @@ export function createPastureMapGeometry(input={}){
 
 export function buildCattleMapSnapshot(input={}){
   const farms=rows(input.farms),pastures=rows(input.pastures),lots=rows(input.lots),occupancy=rows(input.occupancy),geometries=rows(input.geometries),points=rows(input.points);
+  const pastureById=new Map(pastures.map(pasture=>[String(pasture.id),pasture]));
   const lotById=new Map(lots.map(lot=>[String(lot.id),lot]));
   const occupancyByPasture=new Map();
   for(const item of occupancy){if(!item.pastureId)continue;const current=occupancyByPasture.get(String(item.pastureId));if(!current||(!item.leftAt&&current.leftAt)||Date.parse(item.enteredAt??0)>=Date.parse(current.enteredAt??0))occupancyByPasture.set(String(item.pastureId),item);}
-  const areas=pastures.map(pasture=>{const current=occupancyByPasture.get(String(pasture.id)),lot=current?.lotId?lotById.get(String(current.lotId)):null;return{...pasture,parentId:pasture.farmUnitId,metadata:{status:pasture.status??'available',forage:pasture.forage??null,capacityAu:pasture.capacityAu??null,currentLotId:current?.lotId??null,currentLotName:lot?.name??lot?.code??null,animalUnits:current?.animalUnits??null}};});
+  const areas=pastures.map(pasture=>{const current=occupancyByPasture.get(String(pasture.id)),lot=current?.lotId?lotById.get(String(current.lotId)):null;return{...pasture,parentId:pasture.farmUnitId,metadata:{status:pasture.operationalStatus??pasture.status??'available',forage:pasture.forage??null,capacityAu:pasture.capacityAu??null,currentLotId:current?.lotId??null,currentLotName:lot?.name??lot?.code??null,animalUnits:current?.animalUnits??lot?.animalUnits??null}};});
   const spatial=buildSpatialSnapshot({areas,geometries:geometries.map(item=>({areaId:item.pastureId??item.id,geometry:item.geometry??item})),points});
   const bounds=spatial.areas.length?Object.freeze([Math.min(...spatial.areas.map(a=>a.bounds[0])),Math.min(...spatial.areas.map(a=>a.bounds[1])),Math.max(...spatial.areas.map(a=>a.bounds[2])),Math.max(...spatial.areas.map(a=>a.bounds[3]))]):null;
-  const schematicPastures=Object.freeze(pastures.filter(p=>Array.isArray(p.polygon)&&p.polygon.length>=3).map(p=>Object.freeze({id:String(p.id),name:p.name??p.id,farmUnitId:p.farmUnitId,areaHa:Number(p.areaHa??0),polygon:p.polygon,status:p.status??'available'})));
-  return Object.freeze({farms:Object.freeze(farms),pastures:spatial.areas,unmappedPastures:spatial.unmappedAreas,schematicPastures,points:spatial.points,bounds,generatedAt:spatial.generatedAt,source:Object.freeze({genericCore:'utilidades/modules/artisys-agro-maps',mapDistribution:'nutricionistaalmeidavh-spec/mapasbrasilrelease'})});
+  const unmappedPastures=Object.freeze(spatial.unmappedAreas.map(item=>{const pasture=pastureById.get(String(item.id))??{};return Object.freeze({...item,farmUnitId:pasture.farmUnitId??null,parentId:pasture.farmUnitId??null,areaHa:Number(pasture.areaHa??0),forage:pasture.forage??null,status:pasture.operationalStatus??pasture.status??'available'});}));
+  const schematicPastures=Object.freeze(pastures.filter(p=>Array.isArray(p.polygon)&&p.polygon.length>=3).map(p=>Object.freeze({id:String(p.id),name:p.name??p.id,farmUnitId:p.farmUnitId,areaHa:Number(p.areaHa??0),polygon:p.polygon,status:p.operationalStatus??p.status??'available'})));
+  return Object.freeze({farms:Object.freeze(farms),pastures:spatial.areas,unmappedPastures,schematicPastures,points:spatial.points,bounds,generatedAt:spatial.generatedAt,source:Object.freeze({genericCore:'utilidades/modules/artisys-agro-maps',mapDistribution:'nutricionistaalmeidavh-spec/mapasbrasilrelease'})});
 }
 
 export function createCattleMapService(persistence){

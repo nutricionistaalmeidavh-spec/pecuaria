@@ -18,15 +18,22 @@ test('[p2-ux] dashboard preferences persist favorites and density per local acce
 });
 
 test('[p2-ux] field favorites persist and mobile targets remain touch sized',async({page})=>{
-  await login(page);
   await page.setViewportSize({width:390,height:844});
+  await login(page);
+  const openMobileNav=async()=>{
+    const toggle=page.getByTestId('mobile-nav-toggle');
+    if(await toggle.isVisible())await toggle.click();
+  };
+  await openMobileNav();
   await navigate(page,'tasks');
   const favorites=page.getByTestId('field-favorites');
   await expect(favorites).toBeVisible();
   await favorites.getByText('Editar').click();
   const rfid=favorites.getByLabel('RFID');
   if(!await rfid.isChecked())await rfid.check();
+  await openMobileNav();
   await navigate(page,'overview');
+  await openMobileNav();
   await navigate(page,'tasks');
   const rfidButton=page.getByTestId('field-favorites').getByRole('button',{name:'RFID'});
   await expect(rfidButton).toBeVisible();

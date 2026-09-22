@@ -161,6 +161,36 @@ jobs:
             qa-artifacts/release-certification.json
             qa-artifacts/release-validation.json
 
+      - name: Publish stable latest installer alias
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = node -p "require('./package.json').version"
+          $tag = "${{ steps.publication.outputs.tag_name }}"
+          $source = "release/ArtiSys-Pecuaria-Setup-$version.exe"
+          $stable = 'release/ArtiSys-Pecuaria-Setup-latest.exe'
+          if (-not (Test-Path $source)) { throw "Versioned installer missing: $source" }
+          Copy-Item $source $stable -Force
+          gh release upload $tag $stable --repo "${{ github.repository }}" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to publish stable latest installer alias' }
+          Write-Host 'Permanent download: https://github.com/${{ github.repository }}/releases/latest/download/ArtiSys-Pecuaria-Setup-latest.exe'
+
+      - name: Verify stable latest installer alias
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ steps.publication.outputs.tag_name }}"
+          $assets = gh release view $tag --repo "${{ github.repository }}" --json assets --jq '.assets[].name'
+          if ($assets -notcontains 'ArtiSys-Pecuaria-Setup-latest.exe') { throw 'Stable latest installer alias is missing from release' }
+          $url = 'https://github.com/${{ github.repository }}/releases/latest/download/ArtiSys-Pecuaria-Setup-latest.exe'
+          & curl.exe --fail --location --silent --show-error --head $url *> $null
+          if ($LASTEXITCODE -ne 0) { throw "Permanent installer URL is unavailable: $url" }
+          Write-Host "Permanent installer URL verified: $url"
+
       - name: Verify published updater feed
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         shell: pwsh

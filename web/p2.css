@@ -75,7 +75,7 @@ html[data-density="compact"] [data-testid="corral-flow"]{padding-top:12px;paddin
   .p2-density-control.compact select{min-height:var(--p2-touch-target)}
   .p2-telemetry-summary{grid-template-columns:1fr}
   .p2-favorite-options{grid-template-columns:1fr 1fr}
-  .p2-field-favorite-editor{left:auto;right:0;grid-template-columns:1fr;width:min(290px,86vw);max-height:min(55vh,360px)}
+  .p2-field-favorite-editor{position:fixed;left:12px;right:12px;bottom:12px;top:auto;z-index:120;grid-template-columns:1fr;width:auto;max-height:min(68vh,520px);overflow:auto}
   .p2-field-favorites-row>button{min-height:var(--p2-touch-target)}
   .domain-table .table-row-action button{width:100%}
 }

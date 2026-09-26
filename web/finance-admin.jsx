@@ -12,7 +12,8 @@ const now=()=>new Date().toISOString();
 function Stat({label,value,detail=null}){return <div className="finance-admin-stat"><span>{label}</span><strong>{value}</strong>{detail&&<small>{detail}</small>}</div>}
 
 export function FinanceAdminWorkspace({data,onRun,allowedActions=[]}){
-  const admin=data?.admin??{};
+  if(!data?.admin)return null;
+  const admin=data.admin;
   const projection=admin.projection??{};
   const [busy,setBusy]=useState(false);
   const [settlementDraft,setSettlementDraft]=useState(null);

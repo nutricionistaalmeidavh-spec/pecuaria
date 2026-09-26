@@ -15,6 +15,10 @@ test('standalone host injects requested edition into the same backend/codebase',
     assert.equal(description.navigation.some(item=>item.id==='finance'),false);
     assert.equal(description.navigation.some(item=>item.id==='iot'),false);
     assert.equal(description.navigation.some(item=>item.id==='animals'),true);
+    await assert.rejects(
+      ()=>host.backend.maps({operation:'state'}),
+      error=>error?.code==='FEATURE_NOT_LICENSED'&&error?.feature==='pastures.advanced'
+    );
   }finally{
     await host.close();
     await rm(dataDir,{recursive:true,force:true});

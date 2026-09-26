@@ -12,16 +12,16 @@ const now=()=>new Date().toISOString();
 function Stat({label,value,detail=null}){return <div className="finance-admin-stat"><span>{label}</span><strong>{value}</strong>{detail&&<small>{detail}</small>}</div>}
 
 export function FinanceAdminWorkspace({data,onRun,allowedActions=[]}){
-  if(!data?.admin)return null;
-  const admin=data.admin;
-  const projection=admin.projection??{};
+  const admin=data?.admin??null;
+  const projection=admin?.projection??{};
   const [busy,setBusy]=useState(false);
   const [settlementDraft,setSettlementDraft]=useState(null);
   const [reconcileDraft,setReconcileDraft]=useState({});
-  const titles=admin.titles??[];
-  const settlements=admin.settlements??[];
+  const titles=admin?.titles??[];
+  const settlements=admin?.settlements??[];
   const payable=useMemo(()=>titles.filter(item=>item.direction==='payable'),[titles]);
   const receivable=useMemo(()=>titles.filter(item=>item.direction==='receivable'),[titles]);
+  if(!admin)return null;
   const unreconciled=(admin.reconciliations??[]).filter(item=>item.status!=='reconciled');
   const reversedIds=new Set(settlements.filter(item=>item.reversesSettlementId).map(item=>item.reversesSettlementId));
   const activeSettlements=settlements.filter(item=>!item.reversesSettlementId&&!reversedIds.has(item.id));

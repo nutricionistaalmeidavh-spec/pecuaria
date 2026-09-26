@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {createStandaloneHost} from '../runtime/host.mjs';
 import {EDITIONS} from '../src/editions.js';
 import {EDITION_UX,editionUxProfile} from '../src/edition-ux.js';
-import {COMMERCIAL_CATALOG,upgradeQuote} from '../src/commercial.js';
+import {COMMERCIAL_CATALOG,upgradeQuote} from '../src/edition-commerce.js';
 import {createDistributionManifest} from '../src/distribution.js';
 
 test('F5 edition UX is progressively deeper without locked-menu clutter',()=>{

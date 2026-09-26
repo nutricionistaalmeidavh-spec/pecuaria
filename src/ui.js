@@ -1,4 +1,5 @@
 import {createShellModel} from '../shared/packages/ui-shell/src/index.js';
+import {createEditionAccess,filterNavigationForEdition} from './editions.js';
 
 export const cattleTheme=Object.freeze({
   direction:'rural-livestock',
@@ -37,7 +38,8 @@ const navigation=Object.freeze([
   {id:'settings',label:'Configurações',icon:'settings'}
 ]);
 
-export function createCattleShellModel({capabilities=[]}={}){
+export function createCattleShellModel({capabilities=[],editionAccess=null}={}){
+  const access=editionAccess??createEditionAccess({edition:'pro'});
   return createShellModel({
     brand:{
       name:'ArtiSys Pecuária',
@@ -46,6 +48,6 @@ export function createCattleShellModel({capabilities=[]}={}){
       visualDirection:'clean rural premium with livestock and veterinary cues'
     },
     capabilities,
-    navigation
+    navigation:filterNavigationForEdition(navigation,access)
   });
 }

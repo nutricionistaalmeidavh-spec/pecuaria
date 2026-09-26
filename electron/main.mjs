@@ -46,8 +46,8 @@ app.whenReady().then(async()=>{
   }
 
   for(const n of ['describe','authState','bootstrap','login','validate','logout','search','alerts','audit','insights','simulateSale','reproductionAdmin','userAdmin','fieldSync','references','load','action','maps'])ipcMain.handle(`artisys:${n}`,(_e,p)=>host.backend[n](p));
-  await openWindow({file:join(here,'../dist/index.html')});
   updates=createUpdateController({ipcMain,getWebContents:()=>win?.webContents??null});
+  await openWindow({file:join(here,'../dist/index.html')});
   if(process.env.ARTISYS_DISABLE_UPDATES!=='1')setTimeout(()=>void updates.check(),4000);
 });
 

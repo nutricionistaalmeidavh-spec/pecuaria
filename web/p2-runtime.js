@@ -87,19 +87,31 @@ const safeTelemetryContext=input=>{
   return Object.freeze(next);
 };
 
+const activeTelemetryContext=()=>{
+  if(typeof document==='undefined')return telemetryContext;
+  const dataset=document.documentElement?.dataset??{};
+  const features=dataset.editionFeatures?dataset.editionFeatures.split(',').filter(Boolean):undefined;
+  return safeTelemetryContext({
+    ...telemetryContext,
+    version:telemetryContext.version??dataset.appVersion,
+    edition:telemetryContext.edition??dataset.edition,
+    features:telemetryContext.features??features
+  });
+};
+
 export function setLocalTelemetryContext(input={}){
   telemetryContext=safeTelemetryContext(input);
   return telemetryContext;
 }
 
 export function getLocalTelemetryContext(){
-  return telemetryContext;
+  return activeTelemetryContext();
 }
 
 export function recordLocalTelemetry(type,detail={}){
   const state=getLocalTelemetryState();
   if(!state.enabled)return false;
-  const event={id:crypto.randomUUID?.()??`${Date.now()}-${Math.random()}`,type:String(type),occurredAt:new Date().toISOString(),detail:safeDetail(detail),context:telemetryContext};
+  const event={id:crypto.randomUUID?.()??`${Date.now()}-${Math.random()}`,type:String(type),occurredAt:new Date().toISOString(),detail:safeDetail(detail),context:activeTelemetryContext()};
   const next={enabled:true,events:[...state.events,event].slice(-TELEMETRY_LIMIT)};
   storage()?.setItem(TELEMETRY_KEY,JSON.stringify(next));
   return true;
@@ -107,7 +119,7 @@ export function recordLocalTelemetry(type,detail={}){
 
 export function exportLocalTelemetry(){
   const state=getLocalTelemetryState();
-  return{format:'artisys-pecuaria-local-telemetry',version:2,createdAt:new Date().toISOString(),context:telemetryContext,events:state.events};
+  return{format:'artisys-pecuaria-local-telemetry',version:2,createdAt:new Date().toISOString(),context:activeTelemetryContext(),events:state.events};
 }
 
 export function installLocalTelemetryErrorCapture(){

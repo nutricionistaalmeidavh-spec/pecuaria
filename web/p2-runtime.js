@@ -12,6 +12,7 @@ const defaults={
 const parse=(value,fallback)=>{try{return JSON.parse(value??'null')??fallback}catch{return fallback}};
 const unique=items=>[...new Set((items??[]).filter(Boolean).map(String))];
 const storage=()=>typeof localStorage==='undefined'?null:localStorage;
+let telemetryContext=Object.freeze({});
 
 export function currentP2ProfileKey(){
   if(typeof document==='undefined')return'default';
@@ -74,10 +75,31 @@ const safeDetail=detail=>{
   }));
 };
 
+const safeTelemetryContext=input=>{
+  const source=input&&typeof input==='object'?input:{};
+  const next={};
+  for(const key of ['version','edition','schemaVersion','lastBackupAt']){
+    const value=source[key];
+    if(value!=null&&['string','number','boolean'].includes(typeof value)&&String(value).length<=120)next[key]=value;
+  }
+  if(Array.isArray(source.features))next.features=unique(source.features).filter(item=>item.length<=120).slice(0,100);
+  if(Array.isArray(source.migrations))next.migrations=unique(source.migrations).filter(item=>item.length<=120).slice(0,100);
+  return Object.freeze(next);
+};
+
+export function setLocalTelemetryContext(input={}){
+  telemetryContext=safeTelemetryContext(input);
+  return telemetryContext;
+}
+
+export function getLocalTelemetryContext(){
+  return telemetryContext;
+}
+
 export function recordLocalTelemetry(type,detail={}){
   const state=getLocalTelemetryState();
   if(!state.enabled)return false;
-  const event={id:crypto.randomUUID?.()??`${Date.now()}-${Math.random()}`,type:String(type),occurredAt:new Date().toISOString(),detail:safeDetail(detail)};
+  const event={id:crypto.randomUUID?.()??`${Date.now()}-${Math.random()}`,type:String(type),occurredAt:new Date().toISOString(),detail:safeDetail(detail),context:telemetryContext};
   const next={enabled:true,events:[...state.events,event].slice(-TELEMETRY_LIMIT)};
   storage()?.setItem(TELEMETRY_KEY,JSON.stringify(next));
   return true;
@@ -85,7 +107,7 @@ export function recordLocalTelemetry(type,detail={}){
 
 export function exportLocalTelemetry(){
   const state=getLocalTelemetryState();
-  return{format:'artisys-pecuaria-local-telemetry',version:1,createdAt:new Date().toISOString(),events:state.events};
+  return{format:'artisys-pecuaria-local-telemetry',version:2,createdAt:new Date().toISOString(),context:telemetryContext,events:state.events};
 }
 
 export function installLocalTelemetryErrorCapture(){

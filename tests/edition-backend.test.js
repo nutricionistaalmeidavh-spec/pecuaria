@@ -33,7 +33,20 @@ function fixture(edition){
       security,
       editionAccess,
       reporting:{simulateSale:async input=>input,insights:async()=>({})},
-      search:{query:async()=>[]},alerts:{list:async()=>[]}
+      search:{query:async input=>{
+        calls.push(['search',input.collections]);
+        return[
+          {collection:'cattle.animals',id:'animal-1',payload:{id:'animal-1',tag:'A1'}},
+          {collection:'cattle.inventory',id:'feed-1',payload:{id:'feed-1',name:'Ração'}},
+          {collection:'cattle.events',id:'repro-1',payload:{id:'repro-1',kind:'reproduction'}}
+        ];
+      }},
+      alerts:{list:async()=>[
+        {id:'weight',target:'weights'},
+        {id:'inventory',target:'inventory'},
+        {id:'reproduction',target:'reproduction'},
+        {id:'backup',target:'settings'}
+      ]}
     },
     screenIds:()=>Object.keys(screenMap),
     screen:id=>screenMap[id],
@@ -90,4 +103,23 @@ test('management sale simulation is allowed while Essential is denied',async()=>
   await assert.rejects(()=>essential.backend.simulateSale({auth,priceMinor:100}),isFeatureError);
   const management=fixture('management');
   assert.deepEqual(await management.backend.simulateSale({auth,priceMinor:100}),{priceMinor:100});
+});
+
+test('global search does not expose records from unlicensed modules',async()=>{
+  const f=fixture('essential');
+  const results=await f.backend.search({term:'a',auth});
+  assert.deepEqual(results.map(item=>item.collection),['cattle.animals']);
+  const [,collections]=f.calls.find(call=>call[0]==='search');
+  assert.equal(collections.includes('cattle.inventory'),false);
+  assert.equal(collections.includes('cattle.finance-titles'),false);
+  await assert.rejects(
+    ()=>f.backend.search({term:'ração',collections:['cattle.inventory'],auth}),
+    isFeatureError
+  );
+});
+
+test('alerts only point to screens licensed in the current edition',async()=>{
+  const f=fixture('essential');
+  const alerts=await f.backend.alerts({auth});
+  assert.deepEqual(alerts.map(alert=>alert.id),['weight','backup']);
 });

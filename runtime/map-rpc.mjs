@@ -1,8 +1,11 @@
+import {featureForRpc} from '../src/editions.js';
+
 const MAP_REPOSITORY='nutricionistaalmeidavh-spec/mapasbrasilrelease';
 const unsupportedProvider=()=>Object.freeze({available:false,platform:'browser',arch:null,repository:MAP_REPOSITORY,catalogVersion:null,catalogAvailable:false,installed:Object.freeze([]),recoveryIssues:Object.freeze([]),profiles:Object.freeze([{id:'basic',label:'Básico',maxZoom:10},{id:'detailed',label:'Detalhado',maxZoom:12},{id:'maximum',label:'Máximo',maxZoom:14}])});
 const unsupported=()=>{const error=new Error('Operações de pacote PMTiles requerem o aplicativo desktop Windows x64.');error.code='MAP_UNSUPPORTED_RUNTIME';error.retryable=false;return error;};
+const featureDenied=()=>{const feature=featureForRpc('maps')??'pastures.advanced';const error=new Error(`Feature not licensed: ${feature} (rpc:maps).`);error.code='FEATURE_NOT_LICENSED';error.feature=feature;error.target='rpc:maps';return error;};
 
-export function createMapRpc({presentation,mapService,mapPackageManager=null}={}){
+export function createMapRpc({presentation,mapService,mapPackageManager=null,editionAccess=null}={}){
   if(!presentation?.services?.security)throw new TypeError('Presentation security service is required.');
   if(!mapService?.snapshot)throw new TypeError('Cattle map service is required.');
   const security=presentation.services.security;
@@ -11,6 +14,7 @@ export function createMapRpc({presentation,mapService,mapPackageManager=null}={}
   const packageManager=()=>{if(!mapPackageManager)throw unsupported();return mapPackageManager;};
 
   return async function maps({auth,operation='state',input={}}={}){
+    if(editionAccess&&!editionAccess.rpcEnabled('maps'))throw featureDenied();
     if(operation==='state'){
       await authenticate(auth,'cattle:read');
       const [map,provider]=await Promise.all([mapService.snapshot(),mapPackageManager?.snapshot?.()??unsupportedProvider()]);

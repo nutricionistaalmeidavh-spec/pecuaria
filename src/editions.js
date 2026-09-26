@@ -57,7 +57,8 @@ const RPC_FEATURE=Object.freeze({
   simulateSale:'sales.simulation',
   reproductionAdmin:'reproduction.pro',
   userAdmin:'user.admin',
-  fieldSync:'field.offline'
+  fieldSync:'field.offline',
+  maps:'pastures.advanced'
 });
 
 function sameFeatures(left,right){

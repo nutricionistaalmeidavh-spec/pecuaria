@@ -13,9 +13,14 @@ const updates=Object.freeze({
     return()=>ipcRenderer.removeListener('artisys:updates:status',listener);
   }
 });
+const licensing=Object.freeze({
+  state:()=>ipcRenderer.invoke('artisys:license:state'),
+  install:token=>ipcRenderer.invoke('artisys:license:install',{token}),
+  remove:()=>ipcRenderer.invoke('artisys:license:remove')
+});
 const names=['describe','authState','bootstrap','validate','search','alerts','audit','insights','simulateSale','reproductionAdmin','userAdmin','fieldSync','references','load','action'];
 const api=Object.fromEntries(names.map(n=>[n,p=>call(n,p)]));
 api.login=async input=>{const result=await call('login',input);currentAuth={sessionId:result.session.id,token:result.token};return result;};
 api.logout=async auth=>{try{return await call('logout',auth??currentAuth)}finally{currentAuth=null;}};
 api.maps=payload=>call('maps',{...(payload??{}),auth:payload?.auth??currentAuth});
-contextBridge.exposeInMainWorld('artisys',Object.freeze({...api,updates}));
+contextBridge.exposeInMainWorld('artisys',Object.freeze({...api,updates,licensing}));

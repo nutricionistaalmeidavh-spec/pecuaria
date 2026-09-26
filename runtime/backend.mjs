@@ -1,6 +1,6 @@
 import {createReproductionManagementService} from '../src/reproduction-management.js';
 import {createFieldSyncService} from '../src/field-sync.js';
-import {createEditionAccess,featureForAction,featureForRpc,featureForScreen} from '../src/editions.js';
+import {createEditionAccess,featureForAction,featureForRpc,featureForScreen,featureForSearchCollection} from '../src/editions.js';
 
 const clean=(screen,edition)=>({
   id:screen.id,
@@ -65,8 +65,24 @@ export function createRpcBackend({presentation,persistence=null,editionAccess=nu
     login:input=>security.authenticate(input),
     validate:auth=>session(auth),
     logout:auth=>security.revoke(auth),
-    async search({term,auth,collections=null,limit=25}){await session(auth);return presentation.services.search.query({term,collections,limit});},
-    async alerts({auth}){await session(auth);return presentation.services.alerts.list();},
+    async search({term,auth,collections=null,limit=25}){
+      await session(auth);
+      let selected;
+      if(collections==null)selected=edition.searchCollections();
+      else{
+        if(!Array.isArray(collections))selected=collections;
+        else{
+          for(const collection of collections){
+            const feature=featureForSearchCollection(collection);
+            if(feature)requireFeature(feature,`search:${collection}`);
+          }
+          selected=collections;
+        }
+      }
+      const results=await presentation.services.search.query({term,collections:selected,limit});
+      return edition.filterSearchResults(results);
+    },
+    async alerts({auth}){await session(auth);return edition.filterAlerts(await presentation.services.alerts.list());},
     async audit({auth,filter={}}){requireRpc('audit');return security.listAudit({...authArgs(auth),...filter});},
     async insights({scope,auth,options={}}){requireFeature(scope==='finance'?'finance.production':'dashboard.basic',`rpc:insights:${scope}`);await session(auth,insightPermission(scope));return presentation.services.reporting.insights(scope,options);},
     async simulateSale({auth,...input}){requireRpc('simulateSale');await session(auth,'finance:read');return presentation.services.reporting.simulateSale(input);},

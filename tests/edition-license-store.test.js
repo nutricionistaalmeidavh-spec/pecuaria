@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {generateKeyPairSync} from 'node:crypto';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {signLicense} from '../shared/packages/licensing/src/index.js';
 import {editionFeatures} from '../src/editions.js';
+import {loadDesktopEntitlementOptions} from '../runtime/desktop-license-config.mjs';
 import {installStoredLicense,isStoredLicenseEnforced,loadStoredProductAccess,removeStoredLicense} from '../runtime/license-store.mjs';
 
 const payload=(edition,id)=>({
@@ -48,6 +49,25 @@ test('invalid stored upgrade is rejected before replacing valid entitlement',asy
     const forged=signLicense(payload('pro','forged'),attacker.privateKey);
     await assert.rejects(()=>installStoredLicense({dataDir,token:forged,publicKey:trusted.publicKey,now:'2026-09-26T13:00:00.000Z'}),error=>error?.code==='LICENSE_INVALID');
     assert.equal((await loadStoredProductAccess({dataDir,publicKey:trusted.publicKey,now:'2026-09-26T13:00:00.000Z'})).edition,'essential');
+  }finally{
+    await rm(dataDir,{recursive:true,force:true});
+  }
+});
+
+test('desktop policy requires activation for fresh installs while preserving legacy Pro compatibility',async()=>{
+  const dataDir=await mkdtemp(join(tmpdir(),'pecuaria-license-policy-'));
+  try{
+    let options=await loadDesktopEntitlementOptions({dataDir,env:{}});
+    assert.equal(options.licenseRequired,true);
+    assert.equal(options.legacyCompatibility,false);
+
+    options=await loadDesktopEntitlementOptions({dataDir,env:{ARTISYS_E2E_USER_DATA:dataDir}});
+    assert.equal(options.licenseRequired,false);
+
+    await writeFile(join(dataDir,'artisys-pecuaria.sqlite'),'legacy-placeholder');
+    options=await loadDesktopEntitlementOptions({dataDir,env:{}});
+    assert.equal(options.licenseRequired,false);
+    assert.equal(options.legacyCompatibility,true);
   }finally{
     await rm(dataDir,{recursive:true,force:true});
   }

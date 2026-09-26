@@ -2,11 +2,11 @@
 
 ## Regra comercial
 
-| Edição | Preço de referência | Proposta |
-|---|---:|---|
-| Essencial | R$ 39 | substituir caderno/planilha no controle do rebanho |
-| Gestão | R$ 120 | gestão produtiva integrada da propriedade |
-| Pro | R$ 330 | operação profissional completa |
+| Edição | SKU | Preço de referência | Proposta |
+|---|---|---:|---|
+| Essencial | `PEC-ESSENTIAL` | R$ 39 | substituir caderno/planilha no controle do rebanho |
+| Gestão | `PEC-MANAGEMENT` | R$ 120 | gestão produtiva integrada da propriedade |
+| Pro | `PEC-PRO` | R$ 330 | operação profissional completa |
 
 Os valores são de venda única. O core obrigatório continua local-first, sem infraestrutura paga ou serviço externo obrigatório.
 
@@ -114,10 +114,45 @@ A edição é aplicada não apenas à navegação, mas também a:
 
 RBAC continua sendo validado depois da licença/feature. Uma permissão de usuário nunca aumenta a edição comprada.
 
-## Upgrades
+## UX por edição
 
-- Essencial → Gestão: preserva o mesmo banco e libera as features Gestão.
-- Gestão → Pro: preserva o mesmo banco e libera as features Pro.
-- Essencial → Pro: preserva o mesmo banco e libera todas as features.
+- Essencial mantém somente a navegação e ações essenciais e oculta áreas profissionais embutidas.
+- Gestão acrescenta fluxos produtivos, mas não monta Financeiro administrativo, mapas avançados, Campo Offline, usuários ou auditoria Pro.
+- Pro mantém toda a profundidade.
+- Configurações exibe a edição ativa e, no desktop, permite colar um novo token de licença assinado para upgrade.
+- O cliente evita solicitar RPCs de estado Pro quando a feature não está presente; o backend continua rejeitando qualquer tentativa direta.
 
-O licenciamento não deve exigir reinstalação nem migração destrutiva.
+## Upgrades e valores
+
+O valor do upgrade é a diferença entre os preços vigentes:
+
+| Upgrade | Valor |
+|---|---:|
+| Essencial → Gestão | R$ 81 |
+| Gestão → Pro | R$ 210 |
+| Essencial → Pro | R$ 291 |
+
+Todos preservam o mesmo banco e executável. Após instalar um token de licença válido, basta reiniciar o aplicativo para aplicar a nova edição. Downgrade não remove dados de módulos superiores.
+
+## Distribuição
+
+A estratégia oficial é `single-installer`:
+
+- um único artefato Windows x64 NSIS: `ArtiSys-Pecuaria-Setup-<versão>.exe`;
+- os três SKUs comerciais apontam para esse mesmo instalador;
+- a edição é determinada pelo entitlement/licença, não por um fork de código;
+- checkout é provider-agnostic: Mercado Livre, Shopee, Gumroad ou integração própria são opcionais e não alteram o core;
+- a chave privada de assinatura nunca é distribuída com o aplicativo.
+
+O utilitário `npm run license:cli -- keygen` gera localmente o par Ed25519 e `npm run license:cli -- issue ...` emite tokens por edição. A chave privada deve ser mantida fora do repositório e do instalador.
+
+## Telemetria local opcional
+
+- desativada por padrão;
+- armazenamento somente no `localStorage` do produto;
+- sem endpoint remoto ou SaaS obrigatório;
+- exportação e limpeza manuais;
+- registra somente contexto técnico permitido: versão, edição, features, migrations, último backup, tipo do evento e erros sanitizados;
+- chaves sensíveis como senha, token, segredo, credencial, e-mail, telefone, nome, payload e documento são filtradas.
+
+O licenciamento, a telemetria e os upgrades não exigem reinstalação nem migração destrutiva.

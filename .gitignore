@@ -3,6 +3,7 @@ dist/
 coverage/
 .qa/
 .artisys-data/
+.artisys-license/
 artifacts/
 qa-artifacts/
 release/
@@ -11,3 +12,4 @@ test-results/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*-license-private.pem

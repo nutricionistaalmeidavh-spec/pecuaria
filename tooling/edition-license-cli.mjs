@@ -1,6 +1,6 @@
 import {generateKeyPairSync} from 'node:crypto';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
-import {resolve,join} from 'node:path';
+import {dirname,resolve,join} from 'node:path';
 import {signLicense} from '../shared/packages/licensing/src/index.js';
 import {commercialProduct} from '../src/edition-commerce.js';
 
@@ -11,7 +11,9 @@ const required=name=>{const found=value(name);if(!found)throw new Error(`--${nam
 
 if(command==='keygen'){
   const directory=resolve(value('dir')??'.artisys-license');
+  const bundledPublicPath=resolve(value('bundle-public')??'branding/license-public.pem');
   await mkdir(directory,{recursive:true});
+  await mkdir(dirname(bundledPublicPath),{recursive:true});
   const {publicKey,privateKey}=generateKeyPairSync('ed25519',{
     publicKeyEncoding:{type:'spki',format:'pem'},
     privateKeyEncoding:{type:'pkcs8',format:'pem'}
@@ -20,7 +22,8 @@ if(command==='keygen'){
   const privatePath=join(directory,'pecuaria-license-private.pem');
   await writeFile(publicPath,publicKey,{encoding:'utf8'});
   await writeFile(privatePath,privateKey,{encoding:'utf8',mode:0o600});
-  console.log(JSON.stringify({publicKey:publicPath,privateKey:privatePath,warning:'Keep the private key outside the application repository and installer.'},null,2));
+  await writeFile(bundledPublicPath,publicKey,{encoding:'utf8'});
+  console.log(JSON.stringify({publicKey:publicPath,bundledPublicKey:bundledPublicPath,privateKey:privatePath,warning:'Keep the private key outside the application repository and installer. Only the public key is bundled.'},null,2));
 }else if(command==='issue'){
   const edition=required('edition');
   const product=commercialProduct(edition);
@@ -41,6 +44,6 @@ if(command==='keygen'){
   const token=signLicense(payload,privateKey);
   console.log(JSON.stringify({sku:product.sku,edition:product.edition,licenseId:payload.licenseId,token},null,2));
 }else{
-  console.error('Usage:\n  node tooling/edition-license-cli.mjs keygen [--dir PATH]\n  node tooling/edition-license-cli.mjs issue --private PATH --edition essential|management|pro --customer ID [--license-id ID] [--device ID] [--expires ISO]');
+  console.error('Usage:\n  node tooling/edition-license-cli.mjs keygen [--dir PATH] [--bundle-public PATH]\n  node tooling/edition-license-cli.mjs issue --private PATH --edition essential|management|pro --customer ID [--license-id ID] [--device ID] [--expires ISO]');
   process.exitCode=1;
 }

@@ -5,15 +5,15 @@ import {resolveProductAccess} from './license.mjs';
 const LICENSE_FILE='license.token';
 const cleanToken=value=>typeof value==='string'?value.trim():'';
 
-async function readStoredToken(dataDir){
-  try{return cleanToken(await readFile(join(dataDir,LICENSE_FILE),'utf8'))}catch(error){if(error?.code==='ENOENT')return null;throw error}
+export async function readStoredLicenseToken(dataDir){
+  if(!dataDir)throw new TypeError('dataDir is required');
+  try{return cleanToken(await readFile(join(dataDir,LICENSE_FILE),'utf8'))||null}catch(error){if(error?.code==='ENOENT')return null;throw error}
 }
 
 export async function loadStoredProductAccess({
   dataDir,publicKey=null,edition='pro',licenseRequired=false,deviceId=null,now=null
 }={}){
-  if(!dataDir)throw new TypeError('dataDir is required');
-  const token=await readStoredToken(dataDir);
+  const token=await readStoredLicenseToken(dataDir);
   return resolveProductAccess({
     edition,licenseToken:token,licensePublicKey:publicKey,
     licenseRequired,deviceId,now
@@ -40,7 +40,7 @@ export async function removeStoredLicense({dataDir}={}){
 }
 
 export async function storedLicenseState({dataDir,publicKey=null,edition='pro',licenseRequired=false,deviceId=null,now=null}={}){
-  const token=await readStoredToken(dataDir);
+  const token=await readStoredLicenseToken(dataDir);
   if(!token)return Object.freeze({present:false,access:resolveProductAccess({edition,licenseRequired:false})});
   const access=resolveProductAccess({licenseToken:token,licensePublicKey:publicKey,licenseRequired,deviceId,now});
   return Object.freeze({present:true,access});

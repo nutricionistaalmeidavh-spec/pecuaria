@@ -6,6 +6,7 @@ import {createBackupManager} from '../src/backup.js';
 import {createCattlePresentation} from '../src/presentation.js';
 import {createCattleMapService} from '../src/pecuaria-map.js';
 import {createRpcBackend} from './backend.mjs';
+import {resolveProductAccess} from './license.mjs';
 import {createMapPackageManager} from './map-package-manager.mjs';
 import {createMapRpc} from './map-rpc.mjs';
 import {createNodeIoTDrivers} from './iot/node-drivers.mjs';
@@ -15,7 +16,18 @@ const PID='agro-pecuaria';
 const DB='artisys-pecuaria.sqlite';
 const mdir=fileURLToPath(new URL('../migrations/',import.meta.url));
 
-export async function createStandaloneHost({dataDir,backupDir=join(dataDir,'backups'),backupRetention=20}={}){
+export async function createStandaloneHost({
+  dataDir,
+  backupDir=join(dataDir,'backups'),
+  backupRetention=20,
+  edition='pro',
+  licenseToken=null,
+  licensePublicKey=null,
+  licenseRequired=false,
+  deviceId=null,
+  licenseNow=null
+}={}){
+  const editionAccess=resolveProductAccess({edition,licenseToken,licensePublicKey,licenseRequired,deviceId,now:licenseNow});
   await mkdir(dataDir,{recursive:true});
   await mkdir(backupDir,{recursive:true});
   const dbPath=join(dataDir,DB);
@@ -32,11 +44,11 @@ export async function createStandaloneHost({dataDir,backupDir=join(dataDir,'back
   const presentation=createCattlePresentation({persistence,recovery,iotRuntime:{drivers,secretStore}});
   const mapService=createCattleMapService(persistence);
   const mapPackageManager=createMapPackageManager({dataDir});
-  const coreBackend=createRpcBackend({presentation,persistence});
+  const coreBackend=createRpcBackend({presentation,persistence,editionAccess});
   const backend=Object.freeze({...coreBackend,maps:createMapRpc({presentation,mapService,mapPackageManager})});
-  const iotStartup=Promise.resolve().then(()=>presentation.services.iot.startEnabled()).catch(()=>[]);
+  const iotStartup=editionAccess.has('iot')?Promise.resolve().then(()=>presentation.services.iot.startEnabled()).catch(()=>[]):Promise.resolve([]);
   return{
-    persistence,recovery,presentation,backend,mapService,mapPackageManager,mapCatalog:mapPackageManager,
+    persistence,recovery,presentation,backend,editionAccess,mapService,mapPackageManager,mapCatalog:mapPackageManager,
     async close(){await iotStartup;await presentation.services.iot.shutdown();await closeDatabase();}
   };
 }

@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {signLicense} from '../shared/packages/licensing/src/index.js';
 import {editionFeatures} from '../src/editions.js';
-import {installStoredLicense,loadStoredProductAccess,removeStoredLicense} from '../runtime/license-store.mjs';
+import {installStoredLicense,isStoredLicenseEnforced,loadStoredProductAccess,removeStoredLicense} from '../runtime/license-store.mjs';
 
 const payload=(edition,id)=>({
   licenseId:id,product:'agro-pecuaria',customerId:'customer-1',
@@ -24,6 +24,7 @@ test('stored signed license upgrades edition without changing data directory',as
     const essentialToken=signLicense(payload('essential','lic-essential'),privateKey);
     const essential=await installStoredLicense({dataDir,token:essentialToken,publicKey,now:'2026-09-26T13:00:00.000Z'});
     assert.equal(essential.edition,'essential');
+    assert.equal(await isStoredLicenseEnforced(dataDir),true);
     assert.equal((await loadStoredProductAccess({dataDir,publicKey,now:'2026-09-26T13:00:00.000Z'})).edition,'essential');
 
     const managementToken=signLicense(payload('management','lic-management'),privateKey);
@@ -32,7 +33,7 @@ test('stored signed license upgrades edition without changing data directory',as
     assert.equal((await loadStoredProductAccess({dataDir,publicKey,now:'2026-09-26T13:00:00.000Z'})).edition,'management');
 
     await removeStoredLicense({dataDir});
-    assert.equal((await loadStoredProductAccess({dataDir,publicKey,edition:'pro'})).licensed,false);
+    await assert.rejects(()=>loadStoredProductAccess({dataDir,publicKey,edition:'pro'}),error=>error?.code==='LICENSE_REQUIRED');
   }finally{
     await rm(dataDir,{recursive:true,force:true});
   }

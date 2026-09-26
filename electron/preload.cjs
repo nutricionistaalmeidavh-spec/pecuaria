@@ -35,7 +35,7 @@ const updates=Object.freeze({
 const licensing=Object.freeze({
   state:()=>ipcRenderer.invoke('artisys:license:state'),
   install:token=>ipcRenderer.invoke('artisys:license:install',{token}),
-  remove:()=>ipcRenderer.invoke('artisys:license:remove')
+  restart:()=>ipcRenderer.invoke('artisys:license:restart')
 });
 const names=['authState','bootstrap','validate','search','alerts','audit','insights','simulateSale','references','load','action'];
 const api=Object.fromEntries(names.map(n=>[n,p=>call(n,p)]));

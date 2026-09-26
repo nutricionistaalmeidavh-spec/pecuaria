@@ -18,6 +18,7 @@ Os valores são de venda única. O core obrigatório continua local-first, sem i
 - Downgrade nunca apaga dados; apenas deixa a feature sem acesso.
 - A UI não deve apresentar telas ou ações indisponíveis como se fossem funcionais.
 - O backend sempre revalida a feature antes de RBAC e antes da operação de domínio.
+- Busca global, alertas, referências e RPCs auxiliares respeitam a mesma matriz de edição; não podem servir como rota lateral para dados não licenciados.
 - Licenças são verificáveis offline; serviços externos de licença/feature flag são opcionais.
 
 ## Features canônicas
@@ -64,6 +65,8 @@ Inclui todas as features Gestão, mais:
 - `user.admin`
 - `audit`
 
+`pastures.advanced` também governa os mapas produtivos/offline e operações de geometria, evitando que o RPC separado de mapas contorne a edição.
+
 ## Superfície por tela/ação
 
 | Tela / ação | Essencial | Gestão | Pro |
@@ -86,6 +89,7 @@ Inclui todas as features Gestão, mais:
 | Estoque e insumos | — | ✓ | ✓ |
 | Pastagens básicas | — | ✓ | ✓ |
 | Avaliação/rotação avançada de pastagens | — | — | ✓ |
+| Mapas produtivos/offline | — | — | ✓ |
 | Nutrição | — | ✓ | ✓ |
 | Agenda de manejo | — | ✓ | ✓ |
 | Campo offline | — | — | ✓ |
@@ -95,6 +99,20 @@ Inclui todas as features Gestão, mais:
 | Backup/restore | ✓ | ✓ | ✓ |
 | Usuários/perfis | — | — | ✓ |
 | Auditoria | — | — | ✓ |
+
+## Enforcement transversal
+
+A edição é aplicada não apenas à navegação, mas também a:
+
+- `describe`, `load` e `action`;
+- RPCs profissionais (`reproductionAdmin`, `userAdmin`, `fieldSync`, `audit`, `maps`);
+- simulação comercial;
+- busca global, inclusive coleções mistas como `cattle.events`;
+- alertas com destino em telas licenciadas;
+- referências auxiliares carregadas pelos formulários;
+- inicialização automática de IoT.
+
+RBAC continua sendo validado depois da licença/feature. Uma permissão de usuário nunca aumenta a edição comprada.
 
 ## Upgrades
 

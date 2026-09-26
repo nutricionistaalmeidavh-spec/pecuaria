@@ -2,6 +2,8 @@ import {app,BrowserWindow,ipcMain} from 'electron';
 import {join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createStandaloneHost} from '../runtime/host.mjs';
+import {loadDesktopEntitlementOptions} from '../runtime/desktop-license-config.mjs';
+import {installStoredLicense,removeStoredLicense,storedLicenseState} from '../runtime/license-store.mjs';
 import {createUpdateController} from './updater.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
@@ -11,8 +13,23 @@ let win;
 let updates;
 
 app.whenReady().then(async()=>{
-  host=await createStandaloneHost({dataDir:join(app.getPath('userData'),'data')});
+  const dataDir=join(app.getPath('userData'),'data');
+  const bundledPublicKeyPath=join(here,'../branding/license-public.pem');
+  const entitlement=await loadDesktopEntitlementOptions({dataDir,bundledPublicKeyPath});
+  host=await createStandaloneHost({dataDir,...entitlement});
   for(const n of ['describe','authState','bootstrap','login','validate','logout','search','alerts','audit','insights','simulateSale','reproductionAdmin','userAdmin','fieldSync','references','load','action','maps'])ipcMain.handle(`artisys:${n}`,(_e,p)=>host.backend[n](p));
+  ipcMain.handle('artisys:license:state',async()=>{
+    const state=await storedLicenseState({dataDir,publicKey:entitlement.licensePublicKey,edition:entitlement.edition,licenseRequired:entitlement.licenseRequired,deviceId:entitlement.deviceId});
+    return{present:state.present,edition:state.access.edition,licensed:state.access.licensed,features:state.access.features,licenseRequired:entitlement.licenseRequired};
+  });
+  ipcMain.handle('artisys:license:install',async(_event,input={})=>{
+    const access=await installStoredLicense({dataDir,token:input.token,publicKey:entitlement.licensePublicKey,deviceId:entitlement.deviceId});
+    return{edition:access.edition,licensed:access.licensed,features:access.features,restartRequired:true};
+  });
+  ipcMain.handle('artisys:license:remove',async()=>{
+    await removeStoredLicense({dataDir});
+    return{removed:true,restartRequired:true};
+  });
   win=new BrowserWindow({width:1440,height:900,minWidth:1024,minHeight:680,show:false,webPreferences:{preload:join(here,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
   updates=createUpdateController({ipcMain,getWebContents:()=>win?.webContents??null});
   await win.loadFile(join(here,'../dist/index.html'));

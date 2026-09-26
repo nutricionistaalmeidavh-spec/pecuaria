@@ -2,10 +2,18 @@ const {contextBridge,ipcRenderer}=require('electron');
 const call=(n,p)=>ipcRenderer.invoke(`artisys:${n}`,p);
 let currentAuth=null;
 let editionFeatures=null;
+const installEditionVisibilityStyle=()=>{
+  if(typeof document==='undefined'||document.getElementById('artisys-edition-visibility'))return;
+  const style=document.createElement('style');
+  style.id='artisys-edition-visibility';
+  style.textContent='html:not([data-edition="pro"]) [data-testid="finance-admin-tabs"],html:not([data-edition="pro"]) [data-testid="reproduction-tabs"],html:not([data-edition="pro"]) [data-testid="pasture-tabs"],html:not([data-edition="pro"]) [data-testid="settings-tabs"],html:not([data-edition="pro"]) [data-testid="audit-panel"],html:not([data-edition="pro"]) [data-testid="field-mobile-workspace"],html:not([data-edition="pro"]) .p0-compact-panel:has([data-testid="field-sync-status"]){display:none!important}';
+  document.head.appendChild(style);
+};
 const applyEditionContext=meta=>{
   const edition=meta?.edition?.id??'pro',features=Array.isArray(meta?.edition?.features)?meta.edition.features:[];
   editionFeatures=new Set(features);
   if(typeof document!=='undefined'){
+    installEditionVisibilityStyle();
     document.documentElement.dataset.edition=edition;
     document.documentElement.dataset.editionFeatures=features.join(',');
   }

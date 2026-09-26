@@ -8,6 +8,7 @@ import {EDITIONS} from '../src/editions.js';
 import {EDITION_UX,editionUxProfile} from '../src/edition-ux.js';
 import {COMMERCIAL_CATALOG,upgradeQuote} from '../src/edition-commerce.js';
 import {createDistributionManifest} from '../src/distribution.js';
+import {clearLocalTelemetry,getLocalTelemetryState,recordLocalTelemetry,setLocalTelemetryContext,setLocalTelemetryEnabled} from '../web/p2-runtime.js';
 
 test('F5 edition UX is progressively deeper without locked-menu clutter',()=>{
   const essential=editionUxProfile('essential');
@@ -77,5 +78,36 @@ test('F9 commercial catalog and upgrade differences are deterministic',()=>{
   for(const item of COMMERCIAL_CATALOG){
     assert.deepEqual(item.features,EDITIONS[item.edition].features);
     assert.equal(item.saleModel,'one-time');
+  }
+});
+
+test('F10 local telemetry is opt-in and carries only technical edition context',()=>{
+  const memory=new Map();
+  const previous=globalThis.localStorage;
+  globalThis.localStorage={
+    getItem:key=>memory.has(key)?memory.get(key):null,
+    setItem:(key,value)=>memory.set(key,String(value)),
+    removeItem:key=>memory.delete(key)
+  };
+  try{
+    setLocalTelemetryContext({
+      version:'1.1.0',edition:'management',features:['animals.basic','finance.production'],
+      migrations:['001','002'],lastBackupAt:'2026-09-26T12:00:00.000Z',
+      email:'should-not-be-recorded@example.com',customerName:'Secret Customer'
+    });
+    assert.equal(recordLocalTelemetry('app.start',{surface:'desktop'}),false);
+    assert.equal(getLocalTelemetryState().events.length,0);
+    setLocalTelemetryEnabled(true);
+    assert.equal(recordLocalTelemetry('app.start',{surface:'desktop',email:'blocked@example.com'}),true);
+    const [event]=getLocalTelemetryState().events;
+    assert.equal(event.context.edition,'management');
+    assert.equal(event.context.version,'1.1.0');
+    assert.deepEqual(event.context.features,['animals.basic','finance.production']);
+    assert.equal('email' in event.context,false);
+    assert.equal('customerName' in event.context,false);
+    assert.equal('email' in event.detail,false);
+    clearLocalTelemetry();
+  }finally{
+    if(previous===undefined)delete globalThis.localStorage;else globalThis.localStorage=previous;
   }
 });

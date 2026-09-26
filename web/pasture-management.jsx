@@ -14,7 +14,8 @@ function PastureMap({pastures=[]}){
 }
 
 export function PastureManagementWorkspace({data}){
-  const management=data??{},pastures=management.pastures??[],rotationPlans=management.rotationPlans??[],bodyCondition=management.bodyCondition??[],occupancy=management.occupancy??[];
+  if(!data)return null;
+  const management=data,pastures=management.pastures??[],rotationPlans=management.rotationPlans??[],bodyCondition=management.bodyCondition??[],occupancy=management.occupancy??[];
   const [mapMode,setMapMode]=useState('schematic');
   const [mapState,setMapState]=useState(null);
   const [mapError,setMapError]=useState(null);

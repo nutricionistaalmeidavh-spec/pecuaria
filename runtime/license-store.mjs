@@ -1,22 +1,29 @@
-import {mkdir,readFile,rm,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,rename,rm,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {resolveProductAccess} from './license.mjs';
 
 const LICENSE_FILE='license.token';
+const ENFORCEMENT_FILE='license.enforced';
 const cleanToken=value=>typeof value==='string'?value.trim():'';
+const exists=async path=>{try{await readFile(path,'utf8');return true}catch(error){if(error?.code==='ENOENT')return false;throw error}};
 
 export async function readStoredLicenseToken(dataDir){
   if(!dataDir)throw new TypeError('dataDir is required');
   try{return cleanToken(await readFile(join(dataDir,LICENSE_FILE),'utf8'))||null}catch(error){if(error?.code==='ENOENT')return null;throw error}
 }
 
+export async function isStoredLicenseEnforced(dataDir){
+  if(!dataDir)throw new TypeError('dataDir is required');
+  return exists(join(dataDir,ENFORCEMENT_FILE));
+}
+
 export async function loadStoredProductAccess({
   dataDir,publicKey=null,edition='pro',licenseRequired=false,deviceId=null,now=null
 }={}){
-  const token=await readStoredLicenseToken(dataDir);
+  const [token,enforced]=await Promise.all([readStoredLicenseToken(dataDir),isStoredLicenseEnforced(dataDir)]);
   return resolveProductAccess({
     edition,licenseToken:token,licensePublicKey:publicKey,
-    licenseRequired,deviceId,now
+    licenseRequired:licenseRequired||enforced,deviceId,now
   });
 }
 
@@ -29,7 +36,17 @@ export async function installStoredLicense({dataDir,token,publicKey,deviceId=nul
     licenseRequired:true,deviceId,now
   });
   await mkdir(dataDir,{recursive:true});
-  await writeFile(join(dataDir,LICENSE_FILE),`${normalized}\n`,{encoding:'utf8',mode:0o600});
+  const marker=join(dataDir,ENFORCEMENT_FILE),target=join(dataDir,LICENSE_FILE),temporary=join(dataDir,`${LICENSE_FILE}.${process.pid}.${Date.now()}.tmp`);
+  const hadMarker=await isStoredLicenseEnforced(dataDir);
+  if(!hadMarker)await writeFile(marker,'1\n',{encoding:'utf8',mode:0o600});
+  try{
+    await writeFile(temporary,`${normalized}\n`,{encoding:'utf8',mode:0o600});
+    await rename(temporary,target);
+  }catch(error){
+    await rm(temporary,{force:true}).catch(()=>{});
+    if(!hadMarker)await rm(marker,{force:true}).catch(()=>{});
+    throw error;
+  }
   return access;
 }
 
@@ -40,10 +57,11 @@ export async function removeStoredLicense({dataDir}={}){
 }
 
 export async function storedLicenseState({dataDir,publicKey=null,edition='pro',licenseRequired=false,deviceId=null,now=null}={}){
-  const token=await readStoredLicenseToken(dataDir);
-  if(!token)return Object.freeze({present:false,access:resolveProductAccess({edition,licenseRequired:false})});
-  const access=resolveProductAccess({licenseToken:token,licensePublicKey:publicKey,licenseRequired,deviceId,now});
-  return Object.freeze({present:true,access});
+  const [token,enforced]=await Promise.all([readStoredLicenseToken(dataDir),isStoredLicenseEnforced(dataDir)]);
+  if(!token)return Object.freeze({present:false,enforced,access:resolveProductAccess({edition,licenseRequired:licenseRequired||enforced})});
+  const access=resolveProductAccess({licenseToken:token,licensePublicKey:publicKey,licenseRequired:licenseRequired||enforced,deviceId,now});
+  return Object.freeze({present:true,enforced,access});
 }
 
 export const STORED_LICENSE_FILENAME=LICENSE_FILE;
+export const STORED_LICENSE_ENFORCEMENT_FILENAME=ENFORCEMENT_FILE;

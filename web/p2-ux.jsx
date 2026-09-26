@@ -1,11 +1,12 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {Icon} from './icons.jsx';
-import {applyP2Density,clearLocalTelemetry,currentP2ProfileKey,exportLocalTelemetry,getLocalTelemetryState,loadP2Preferences,recordLocalTelemetry,saveP2Preferences,setLocalTelemetryEnabled} from './p2-runtime.js';
+import {applyP2Density,clearLocalTelemetry,currentP2ProfileKey,exportLocalTelemetry,getLocalTelemetryContext,getLocalTelemetryState,loadP2Preferences,recordLocalTelemetry,saveP2Preferences,setLocalTelemetryEnabled} from './p2-runtime.js';
 
 const dashboardOptions=[
   ['animals','Animais','beef'],['weights','Pesagens','scale'],['sanitary','Sanidade','shield-plus'],['reproduction','Reprodução','heart'],['pastures','Pastagens','map'],['nutrition','Nutrição','wheat'],['finance','Financeiro','wallet-cards'],['reports','Relatórios','file-chart-column'],['tasks','Campo','clipboard-check']
 ];
 const fieldOptions=['Tarefas','Peso','Animal 360º','Mover','Coletivo','Ciclo','Nascimento','Sanidade','Reprodução','Escores','RFID','Rastreio','Pastos','Sincronizar'];
+const editionLabels={essential:'Essencial',management:'Gestão',pro:'Pro',custom:'Personalizada'};
 
 export function useP2Preferences(){
   const [profileKey,setProfileKey]=useState('default');
@@ -58,6 +59,24 @@ const downloadJson=(filename,value)=>{
   anchor.href=url;anchor.download=filename;document.body.appendChild(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);
 };
 
+function EditionLicensePanel(){
+  const licensing=globalThis.artisys?.licensing??null;
+  const context=getLocalTelemetryContext();
+  const [state,setState]=useState(null);
+  const [token,setToken]=useState('');
+  const [message,setMessage]=useState(null);
+  const [busy,setBusy]=useState(false);
+  useEffect(()=>{let active=true;if(!licensing?.state)return()=>{};licensing.state().then(value=>{if(active)setState(value)}).catch(()=>{});return()=>{active=false}},[licensing]);
+  const edition=state?.edition??context.edition??document.documentElement?.dataset?.edition??'pro';
+  const label=editionLabels[edition]??edition;
+  const activate=async()=>{
+    if(!licensing?.install||!token.trim())return;
+    setBusy(true);setMessage(null);
+    try{const result=await licensing.install(token.trim());setState(current=>({...current,...result,present:true}));setToken('');setMessage('Licença validada. Reinicie o aplicativo para aplicar a nova edição.')}catch(error){setMessage(error?.message??'Licença inválida.')}finally{setBusy(false)}
+  };
+  return <section className="p2-telemetry" data-testid="edition-license-panel"><div className="p2-section-heading"><div><span className="eyebrow">Edição instalada</span><h3>ArtiSys Pecuária {label}</h3><p>{state?.licensed?'Licença local verificada offline.':'Modo de compatibilidade local. A ativação não depende de servidor externo.'}</p></div></div><div className="p2-telemetry-summary"><div><span>Edição</span><strong>{label}</strong></div><div><span>Licença</span><strong>{state?.licensed?'Verificada offline':'Compatibilidade local'}</strong></div><div><span>Recursos</span><strong>{state?.features?.length??context.features?.length??'—'}</strong></div></div>{licensing?.install&&<div className="form-grid"><label><span>Nova licença / upgrade</span><textarea rows="3" value={token} onChange={event=>setToken(event.target.value)} placeholder="Cole o token de licença assinado"/></label><div className="actions"><button type="button" className="primary" disabled={busy||!token.trim()} onClick={()=>void activate()}>{busy?'Validando…':'Ativar licença'}</button></div>{message&&<small>{message}</small>}</div>}</section>;
+}
+
 export function P2LocalTelemetryPanel(){
   const [state,setState]=useState(()=>getLocalTelemetryState());
   const last=state.events.at(-1)??null;
@@ -66,5 +85,5 @@ export function P2LocalTelemetryPanel(){
     setState(next);
     if(next.enabled){recordLocalTelemetry('telemetry.enabled',{surface:'settings'});setState(getLocalTelemetryState())}
   };
-  return <section className="p2-telemetry" data-testid="local-telemetry-panel"><div className="p2-section-heading"><div><span className="eyebrow">Diagnóstico opcional</span><h3>Telemetria local</h3><p>Registra apenas eventos técnicos de uso e erros neste computador. Nada é enviado para internet ou SaaS.</p></div><button type="button" className={state.enabled?'secondary':'primary'} aria-pressed={state.enabled} onClick={toggle}>{state.enabled?'Desativar registro local':'Ativar registro local'}</button></div><div className="p2-telemetry-summary"><div><span>Status</span><strong>{state.enabled?'Ativa neste computador':'Desativada'}</strong></div><div><span>Eventos armazenados</span><strong>{state.events.length}</strong></div><div><span>Último evento</span><strong>{last?.type??'—'}</strong></div></div><div className="actions"><button type="button" disabled={!state.events.length} onClick={()=>downloadJson(`artisys-telemetria-local-${new Date().toISOString().slice(0,10)}.json`,exportLocalTelemetry())}>Exportar JSON local</button><button type="button" className="ghost" disabled={!state.events.length} onClick={()=>setState(clearLocalTelemetry())}>Limpar eventos</button></div></section>;
+  return <><EditionLicensePanel/><section className="p2-telemetry" data-testid="local-telemetry-panel"><div className="p2-section-heading"><div><span className="eyebrow">Diagnóstico opcional</span><h3>Telemetria local</h3><p>Registra apenas eventos técnicos de uso e erros neste computador. Nada é enviado para internet ou SaaS.</p></div><button type="button" className={state.enabled?'secondary':'primary'} aria-pressed={state.enabled} onClick={toggle}>{state.enabled?'Desativar registro local':'Ativar registro local'}</button></div><div className="p2-telemetry-summary"><div><span>Status</span><strong>{state.enabled?'Ativa neste computador':'Desativada'}</strong></div><div><span>Eventos armazenados</span><strong>{state.events.length}</strong></div><div><span>Último evento</span><strong>{last?.type??'—'}</strong></div></div><div className="actions"><button type="button" disabled={!state.events.length} onClick={()=>downloadJson(`artisys-telemetria-local-${new Date().toISOString().slice(0,10)}.json`,exportLocalTelemetry())}>Exportar JSON local</button><button type="button" className="ghost" disabled={!state.events.length} onClick={()=>setState(clearLocalTelemetry())}>Limpar eventos</button></div></section></>;
 }

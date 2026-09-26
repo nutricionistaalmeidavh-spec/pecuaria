@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Ativar ArtiSys Pecuária</title>
+  <style>
+    :root{font-family:Inter,system-ui,sans-serif;color:#17201b;background:#f4f7f4}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:28px}.card{width:min(620px,100%);background:#fff;border:1px solid #dce4dc;border-radius:18px;padding:28px;box-shadow:0 18px 50px #17201b18}.eyebrow{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#315a3e}h1{margin:8px 0 10px;font-size:28px}p{color:#6b786f;line-height:1.5}textarea{width:100%;min-height:150px;border:1px solid #cbd6cb;border-radius:12px;padding:12px;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;resize:vertical}button{margin-top:14px;border:0;border-radius:10px;padding:11px 16px;background:#315a3e;color:#fff;font-weight:700;cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}.message{margin-top:14px;padding:10px 12px;border-radius:10px;background:#eef4ef}.error{background:#fbecec;color:#8b2525}.meta{font-size:13px;margin-top:18px;padding-top:18px;border-top:1px solid #e7ece7}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <span class="eyebrow">Ativação local</span>
+    <h1>ArtiSys Pecuária</h1>
+    <p>Esta instalação ainda não possui uma licença válida. Cole abaixo o token fornecido na compra. A validação é feita neste computador e não depende de servidor externo.</p>
+    <label><span>Token de licença</span><textarea id="token" autocomplete="off" spellcheck="false" placeholder="Cole o token assinado"></textarea></label>
+    <button id="activate" type="button">Validar e ativar</button>
+    <div id="message" class="message" hidden></div>
+    <div class="meta">O mesmo instalador atende Essencial, Gestão e Pro. A licença define os recursos liberados.</div>
+  </main>
+  <script>
+    const token=document.getElementById('token'),button=document.getElementById('activate'),message=document.getElementById('message');
+    const show=(text,error=false)=>{message.hidden=false;message.textContent=text;message.className=`message${error?' error':''}`};
+    button.addEventListener('click',async()=>{
+      const value=token.value.trim();if(!value)return show('Cole o token de licença.',true);
+      button.disabled=true;show('Validando licença…');
+      try{
+        const result=await window.artisys.licensing.install(value);
+        show(`Licença ${result.edition} validada. Reiniciando…`);
+        await window.artisys.licensing.restart();
+      }catch(error){show(error?.message??'Licença inválida.',true);button.disabled=false}
+    });
+  </script>
+</body>
+</html>

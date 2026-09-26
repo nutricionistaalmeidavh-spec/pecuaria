@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createStandaloneHost} from '../runtime/host.mjs';
@@ -27,6 +27,27 @@ test('F5 edition UX is progressively deeper without locked-menu clutter',()=>{
   assert.equal(management.sections.includes('field-offline'),false);
   assert.equal(pro.sections.includes('field-offline'),true);
   assert.deepEqual(Object.keys(EDITION_UX),['essential','management','pro']);
+});
+
+test('F5 client integration suppresses Pro-only background state and advanced embedded workspaces',async()=>{
+  const [preload,bootstrap,finance,pasture,settings]=await Promise.all([
+    readFile(new URL('../electron/preload.cjs',import.meta.url),'utf8'),
+    readFile(new URL('../web/bootstrap.jsx',import.meta.url),'utf8'),
+    readFile(new URL('../web/finance-admin.jsx',import.meta.url),'utf8'),
+    readFile(new URL('../web/pasture-management.jsx',import.meta.url),'utf8'),
+    readFile(new URL('../web/p2-ux.jsx',import.meta.url),'utf8')
+  ]);
+  for(const source of [preload,bootstrap]){
+    assert.match(source,/reproduction\.pro/);
+    assert.match(source,/user\.admin/);
+    assert.match(source,/field\.offline/);
+    assert.match(source,/artisys-edition-visibility/);
+    assert.match(source,/field-mobile-workspace/);
+  }
+  assert.match(finance,/if\(!admin\)return null/);
+  assert.match(pasture,/if\(!data\)return null/);
+  assert.match(settings,/edition-license-panel/);
+  assert.match(settings,/Nova licença \/ upgrade/);
 });
 
 test('F6 same database survives upgrade and downgrade without destructive migration',async()=>{
@@ -83,18 +104,16 @@ test('F9 commercial catalog and upgrade differences are deterministic',()=>{
 
 test('F10 local telemetry is opt-in and carries only technical edition context',()=>{
   const memory=new Map();
-  const previous=globalThis.localStorage;
+  const previousStorage=globalThis.localStorage;
+  const previousDocument=globalThis.document;
   globalThis.localStorage={
     getItem:key=>memory.has(key)?memory.get(key):null,
     setItem:(key,value)=>memory.set(key,String(value)),
     removeItem:key=>memory.delete(key)
   };
+  globalThis.document={documentElement:{dataset:{edition:'management',editionFeatures:'animals.basic,finance.production',appVersion:'1.1.0'}}};
   try{
-    setLocalTelemetryContext({
-      version:'1.1.0',edition:'management',features:['animals.basic','finance.production'],
-      migrations:['001','002'],lastBackupAt:'2026-09-26T12:00:00.000Z',
-      email:'should-not-be-recorded@example.com',customerName:'Secret Customer'
-    });
+    setLocalTelemetryContext({migrations:['001','002'],lastBackupAt:'2026-09-26T12:00:00.000Z',email:'should-not-be-recorded@example.com',customerName:'Secret Customer'});
     assert.equal(recordLocalTelemetry('app.start',{surface:'desktop'}),false);
     assert.equal(getLocalTelemetryState().events.length,0);
     setLocalTelemetryEnabled(true);
@@ -103,11 +122,14 @@ test('F10 local telemetry is opt-in and carries only technical edition context',
     assert.equal(event.context.edition,'management');
     assert.equal(event.context.version,'1.1.0');
     assert.deepEqual(event.context.features,['animals.basic','finance.production']);
+    assert.deepEqual(event.context.migrations,['001','002']);
     assert.equal('email' in event.context,false);
     assert.equal('customerName' in event.context,false);
     assert.equal('email' in event.detail,false);
     clearLocalTelemetry();
   }finally{
-    if(previous===undefined)delete globalThis.localStorage;else globalThis.localStorage=previous;
+    setLocalTelemetryContext({});
+    if(previousStorage===undefined)delete globalThis.localStorage;else globalThis.localStorage=previousStorage;
+    if(previousDocument===undefined)delete globalThis.document;else globalThis.document=previousDocument;
   }
 });

@@ -45,7 +45,7 @@ export async function createStandaloneHost({
   const mapService=createCattleMapService(persistence);
   const mapPackageManager=createMapPackageManager({dataDir});
   const coreBackend=createRpcBackend({presentation,persistence,editionAccess});
-  const backend=Object.freeze({...coreBackend,maps:createMapRpc({presentation,mapService,mapPackageManager})});
+  const backend=Object.freeze({...coreBackend,maps:createMapRpc({presentation,mapService,mapPackageManager,editionAccess})});
   const iotStartup=editionAccess.has('iot')?Promise.resolve().then(()=>presentation.services.iot.startEnabled()).catch(()=>[]):Promise.resolve([]);
   return{
     persistence,recovery,presentation,backend,editionAccess,mapService,mapPackageManager,mapCatalog:mapPackageManager,

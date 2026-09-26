@@ -61,6 +61,33 @@ const RPC_FEATURE=Object.freeze({
   maps:'pastures.advanced'
 });
 
+const SEARCH_COLLECTION_FEATURE=Object.freeze({
+  'cattle.farm-units':'data.basic',
+  'cattle.lots':'lots.basic',
+  'cattle.animals':'animals.basic',
+  'cattle.breeds':'data.basic',
+  'cattle.categories':'data.basic',
+  'cattle.parties':'data.basic',
+  'cattle.sanitary-protocols':'sanitary.basic',
+  'cattle.events':'animals.basic',
+  'cattle.trades':'trades.basic',
+  'cattle.finance':'finance.production',
+  'cattle.finance-accounts':'finance.admin',
+  'cattle.finance-titles':'finance.admin',
+  'cattle.finance-settlements':'finance.admin',
+  'cattle.finance-categories':'finance.admin',
+  'cattle.finance-reconciliations':'finance.admin',
+  'cattle.finance-imports':'finance.admin',
+  'cattle.traceability':'traceability.basic',
+  'cattle.inventory':'inventory.basic',
+  'cattle.pastures':'pastures.basic',
+  'cattle.pasture-assessments':'pastures.advanced',
+  'cattle.body-condition':'animals.body-condition',
+  'cattle.pasture-rotation-plan':'pastures.advanced',
+  'cattle.nutrition':'nutrition.basic',
+  'cattle.tasks':'tasks.basic'
+});
+
 function sameFeatures(left,right){
   if(left.length!==right.length)return false;
   const expected=new Set(right);
@@ -97,6 +124,19 @@ export function featureForRpc(name){
   return RPC_FEATURE[name]??null;
 }
 
+export function featureForSearchCollection(collection){
+  return SEARCH_COLLECTION_FEATURE[collection]??null;
+}
+
+function featureForSearchResult(result){
+  if(result?.collection==='cattle.events'){
+    if(result.payload?.kind==='sanitary')return 'sanitary.basic';
+    if(result.payload?.kind==='reproduction')return 'reproduction.basic';
+    return 'animals.basic';
+  }
+  return featureForSearchCollection(result?.collection);
+}
+
 export function createEditionAccess({edition='pro',features=null,licensed=false,licensePayload=null,defaults={},tenantFlags={},userFlags={}}={}){
   const selected=features==null?editionFeatures(edition):unique(features);
   const resolvedEdition=features==null?edition:inferEdition(selected);
@@ -112,6 +152,16 @@ export function createEditionAccess({edition='pro',features=null,licensed=false,
     const feature=featureForRpc(name);
     return feature?has(feature):true;
   };
+  const searchCollectionEnabled=collection=>{
+    const feature=featureForSearchCollection(collection);
+    return Boolean(feature)&&has(feature);
+  };
+  const searchCollections=()=>Object.freeze(Object.keys(SEARCH_COLLECTION_FEATURE).filter(searchCollectionEnabled));
+  const filterSearchResults=results=>Object.freeze((results??[]).filter(result=>{
+    const feature=featureForSearchResult(result);
+    return Boolean(feature)&&has(feature);
+  }));
+  const filterAlerts=alerts=>Object.freeze((alerts??[]).filter(alert=>Boolean(alert?.target)&&screenEnabled(alert.target)));
   const sanitizeScreenPayload=(screenId,payload)=>{
     if(!payload||typeof payload!=='object'||Array.isArray(payload))return payload;
     const next={...payload};
@@ -144,7 +194,7 @@ export function createEditionAccess({edition='pro',features=null,licensed=false,
     licensed:Boolean(licensed),
     licensePayload:licensePayload??null,
     features:Object.freeze([...selected]),
-    has,screenEnabled,actionEnabled,rpcEnabled,sanitizeScreenPayload,filterReferences
+    has,screenEnabled,actionEnabled,rpcEnabled,searchCollectionEnabled,searchCollections,filterSearchResults,filterAlerts,sanitizeScreenPayload,filterReferences
   });
 }
 

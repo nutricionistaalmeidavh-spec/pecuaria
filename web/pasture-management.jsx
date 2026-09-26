@@ -14,8 +14,7 @@ function PastureMap({pastures=[]}){
 }
 
 export function PastureManagementWorkspace({data}){
-  if(!data)return null;
-  const management=data,pastures=management.pastures??[],rotationPlans=management.rotationPlans??[],bodyCondition=management.bodyCondition??[],occupancy=management.occupancy??[];
+  const management=data??{},pastures=management.pastures??[],rotationPlans=management.rotationPlans??[],bodyCondition=management.bodyCondition??[],occupancy=management.occupancy??[];
   const [mapMode,setMapMode]=useState('schematic');
   const [mapState,setMapState]=useState(null);
   const [mapError,setMapError]=useState(null);
@@ -25,13 +24,14 @@ export function PastureManagementWorkspace({data}){
     if(typeof mapsApi!=='function'){setMapError('O runtime de mapas não está disponível.');return null;}
     try{const state=await mapsApi({operation:'state'});setMapState(state);setMapError(null);return state}catch(error){setMapError(error?.message??'Não foi possível carregar o mapa geográfico.');return null;}
   };
-  useEffect(()=>{void reloadMap()},[data]);
+  useEffect(()=>{if(data)void reloadMap()},[data]);
   const runMap=async(operation,input={})=>{
     if(typeof mapsApi!=='function')throw new Error('Runtime de mapas indisponível.');
     const result=await mapsApi({operation,input});
     await reloadMap();
     return result;
   };
+  if(!data)return null;
   return <div className="pasture-management" data-testid="pasture-management">
     <section className="panel" data-testid="pasture-status-cards"><div className="panel-heading"><div><span className="eyebrow">Estado operacional</span><h2>Pastagens</h2><p>Capacidade, ocupação e descanso derivados do histórico local.</p></div></div><div className="data-cards">{pastures.map(pasture=><article className="data-card" key={pasture.id}><strong>{pasture.name??pasture.id}</strong><span>Status: {statusLabel[pasture.operationalStatus]??pasture.operationalStatus}</span><span>Área: {fmt(pasture.areaHa)} ha</span><span>Capacidade: {pasture.capacityAu==null?'Sem dados':`${pasture.capacityAu} UA`}</span><span>Descanso: {pasture.restDays==null?'Sem dados':`${pasture.restDays} dia(s)`}</span></article>)}</div></section>
     <section className="panel" data-testid="pasture-map-mode"><div className="panel-heading"><div><span className="eyebrow">Visão espacial</span><h2>Mapa e ocupação</h2><p>Alterne entre a visão geográfica WGS84 e o desenho esquemático local já existente.</p></div><div className="pasture-map-mode"><button type="button" data-testid="map-mode-geographic" aria-pressed={mapMode==='geographic'} onClick={()=>setMapMode('geographic')}>Mapa geográfico</button><button type="button" data-testid="map-mode-schematic" aria-pressed={mapMode==='schematic'} onClick={()=>setMapMode('schematic')}>Esquemático</button></div></div></section>
